@@ -587,6 +587,10 @@ async function executeSpinUpProject(
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  // Hoisted so the catch block below can fail the run instead of leaving it
+  // stuck at 'running' forever -- set once the run row actually exists.
+  let runId: string | undefined;
+
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader.startsWith("Bearer ")) {
@@ -649,6 +653,57 @@ serve(async (req) => {
         });
       }
 
+      // Validate before claiming, not after: the compare-and-swap below is
+      // effectively a one-way door into "approved" (or "rejected"), so any
+      // check that can still fail afterward must run first -- otherwise a
+      // failed lookup would leave the action stuck at "approved" with
+      // nothing to ever move it to a terminal state, the exact class of bug
+      // this fix is closing on the orch_runs side.
+      let tool: Tool | null = null;
+      if (decision !== "rejected") {
+        const { data: t } = await admin
+          .from("orch_tool_registry")
+          .select("*")
+          .eq("tool_name", action.tool_name)
+          .single();
+        if (!t) {
+          return new Response(JSON.stringify({ error: "Tool no longer available" }), {
+            status: 410,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (t.risk_level === "locked") {
+          return new Response(JSON.stringify({ error: "Tool is locked and cannot run" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        tool = t as Tool;
+      }
+
+      // The status check above is a fast, friendly early-out -- it isn't the
+      // real guard. Two concurrent approval requests for the same action_id
+      // (a double-tap, two tabs, a client retry after a dropped response)
+      // could both read status='proposed' before either has written
+      // anything, and previously both would have gone on to call
+      // executeAction -- firing whatever the tool does (a payment, a message
+      // send) twice. This UPDATE ... WHERE status = 'proposed' is the actual
+      // compare-and-swap: only the request whose UPDATE affects a row
+      // proceeds; the loser sees 0 rows back and stops here.
+      const claimStatus = decision === "rejected" ? "rejected" : "approved";
+      const { data: claimed } = await admin
+        .from("orch_actions")
+        .update({ status: claimStatus, decided_at: new Date().toISOString() })
+        .eq("id", action_id)
+        .eq("status", "proposed")
+        .select("id");
+      if (!claimed || claimed.length === 0) {
+        return new Response(JSON.stringify({ error: "Action already decided" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       await admin.from("orch_approvals").insert({
         action_id,
         user_id: userId,
@@ -658,39 +713,15 @@ serve(async (req) => {
       });
 
       if (decision === "rejected") {
-        await admin
-          .from("orch_actions")
-          .update({ status: "rejected", decided_at: new Date().toISOString() })
-          .eq("id", action_id);
         return new Response(JSON.stringify({ ok: true, status: "rejected" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Approved (possibly edited) — execute now
-      const { data: tool } = await admin
-        .from("orch_tool_registry")
-        .select("*")
-        .eq("tool_name", action.tool_name)
-        .single();
-      if (!tool) {
-        return new Response(JSON.stringify({ error: "Tool no longer available" }), {
-          status: 410,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (tool.risk_level === "locked") {
-        return new Response(JSON.stringify({ error: "Tool is locked and cannot run" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
+      // Approved (possibly edited) — execute now. This request holds the
+      // claim (status is 'approved', not 'proposed') so it's the only one
+      // that will ever call executeAction for this action_id.
       const argsToRun = edited_args ?? action.tool_args;
-      await admin
-        .from("orch_actions")
-        .update({ status: "approved", decided_at: new Date().toISOString() })
-        .eq("id", action_id);
 
       const result = await executeAction(action_id, userId, tool as Tool, argsToRun, authHeader);
       await admin
@@ -1108,6 +1139,18 @@ serve(async (req) => {
       );
     }
 
+    // Self-heal: a previous invocation for this user may have died between
+    // creating its orch_runs row and updating it to a final status (killed
+    // process, platform timeout past the 150s edge budget) -- nothing else
+    // ever revisits that row, so left alone it stays 'running' forever and
+    // permanently occupies the "pending/running" slot the UI shows as an
+    // in-flight run. Cheap (single indexed UPDATE scoped to this user) and
+    // safe to run on every call.
+    await admin.rpc("reconcile_stale_orch_runs", { _user_id: userId }).then(
+      ({ error }) => { if (error) console.warn("[orchestrator] stale-run reconcile failed (non-fatal)", error); },
+      (e) => console.warn("[orchestrator] stale-run reconcile failed (non-fatal)", e),
+    );
+
     const t0 = Date.now();
     const { data: tools } = await admin
       .from("orch_tool_registry")
@@ -1129,6 +1172,7 @@ serve(async (req) => {
       })
       .select()
       .single();
+    runId = run?.id;
 
     const planned = await planTools(intent, agent_kind, tools as Tool[], context, userId, authHeader);
 
@@ -1205,8 +1249,24 @@ serve(async (req) => {
     );
   } catch (e) {
     console.error("agent-orchestrator error:", e);
+    const message = e instanceof Error ? e.message : "Unknown error";
+    // Without this, a run row created just above (status 'running') would be
+    // left there forever the moment anything after its INSERT throws --
+    // classifyIntent/planTools hitting the AI gateway, a DB write failing,
+    // etc. -- since nothing else ever revisits a row once it's created.
+    // reconcile_stale_orch_runs (see 20260914*.sql) is the backstop for a
+    // hard process kill that skips this catch entirely; this covers every
+    // ordinary caught error immediately instead of waiting out that timeout.
+    if (runId) {
+      await admin
+        .from("orch_runs")
+        .update({ status: "failed", error: message.slice(0, 2000) })
+        .eq("id", runId)
+        .eq("status", "running")
+        .then(({ error }) => { if (error) console.error("[orchestrator] failed to mark run as failed", error); });
+    }
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
