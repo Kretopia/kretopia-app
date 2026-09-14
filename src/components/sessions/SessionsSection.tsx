@@ -81,7 +81,7 @@ export const SessionsSection = ({ userLocation }: SessionsSectionProps) => {
           .from('jam_participants')
           .select('jam_id')
           .in('jam_id', sessionIds)
-          .in('status', ['going', 'interested']);
+          .in('status', ['going', 'interested', 'rsvp']);
 
         const countMap: Record<string, number> = {};
         counts?.forEach(c => {
@@ -109,7 +109,7 @@ export const SessionsSection = ({ userLocation }: SessionsSectionProps) => {
         .from('jam_participants')
         .select('jam_id')
         .in('jam_id', mySessionIds)
-        .in('status', ['going', 'interested']);
+        .in('status', ['going', 'interested', 'rsvp']);
 
       const myCountMap: Record<string, number> = {};
       myCounts?.forEach(c => {
@@ -166,14 +166,33 @@ export const SessionsSection = ({ userLocation }: SessionsSectionProps) => {
     fetchSessions();
   }, [fetchSessions]);
 
-  // Handle ticket purchase success — add participant after payment
+  // Handle ticket purchase success — confirm payment, then refresh.
+  //
+  // SECURITY: `ticket_success` (an event id) is a client-supplied URL param
+  // and must never by itself be trusted to grant event access — anyone can
+  // type ?ticket_success=<any-event-id> into the address bar. The only
+  // trustworthy signal is the server confirming, via Stripe, that the
+  // `session_id` Stripe redirected back with corresponds to an event_orders
+  // row that was actually paid. That confirmation — and the resulting
+  // jam_participants insert — happens server-side inside verify-event-ticket
+  // (the same edge function the native ticket-tier flow uses in
+  // EventPage.tsx); this effect only calls it and reflects its result. It
+  // never inserts a participant row itself based on the URL.
   useEffect(() => {
     const ticketSuccess = searchParams.get('ticket_success');
+    const stripeSessionId = searchParams.get('session_id');
     if (!ticketSuccess || !user) return;
 
-    const addParticipant = async () => {
+    const confirmTicket = async () => {
       try {
-        // Check if already joined
+        if (!stripeSessionId) {
+          // No Stripe session to verify — nothing to confirm, nothing granted.
+          return;
+        }
+
+        // Note whether we were already a participant, purely to decide
+        // whether to send a confirmation email below (avoid duplicates on
+        // repeat visits to this URL) — this is a read, not an access grant.
         const { data: existing } = await supabase
           .from('jam_participants')
           .select('id')
@@ -181,40 +200,52 @@ export const SessionsSection = ({ userLocation }: SessionsSectionProps) => {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        if (!existing) {
-          const { data: inserted } = await supabase.from('jam_participants').insert({
-            jam_id: ticketSuccess,
-            user_id: user.id,
-            status: 'going',
-          }).select('id').single();
+        const { data, error } = await supabase.functions.invoke('verify-event-ticket', {
+          body: { sessionId: stripeSessionId },
+        });
+        if (error) throw error;
 
-          // Send confirmation email for ticket purchase
-          if (inserted) {
-            // Fetch event details for the email
-            const { data: eventData } = await supabase
-              .from('creative_jams')
-              .select('title, start_time, end_time, venue_name, venue_address')
-              .eq('id', ticketSuccess)
-              .single();
-            if (eventData) {
-              sendEventConfirmationEmail({
-                eventId: ticketSuccess,
-                eventTitle: eventData.title,
-                startTime: eventData.start_time,
-                endTime: eventData.end_time,
-                venueName: eventData.venue_name,
-                venueAddress: eventData.venue_address,
-                isTicketed: true,
-                participantId: inserted.id,
-              });
+        if (data?.status === 'paid') {
+          if (!existing) {
+            const { data: participant } = await supabase
+              .from('jam_participants')
+              .select('id')
+              .eq('jam_id', ticketSuccess)
+              .eq('user_id', user.id)
+              .maybeSingle();
+            if (participant) {
+              const { data: eventData } = await supabase
+                .from('creative_jams')
+                .select('title, start_time, end_time, venue_name, venue_address')
+                .eq('id', ticketSuccess)
+                .single();
+              if (eventData) {
+                sendEventConfirmationEmail({
+                  eventId: ticketSuccess,
+                  eventTitle: eventData.title,
+                  startTime: eventData.start_time,
+                  endTime: eventData.end_time,
+                  venueName: eventData.venue_name,
+                  venueAddress: eventData.venue_address,
+                  isTicketed: true,
+                  participantId: participant.id,
+                });
+              }
             }
           }
-        }
 
-        toast({ title: "Ticket purchased!", description: "You're in! See you at the event." });
-        fetchSessions();
+          toast({ title: "Ticket purchased!", description: "You're in! See you at the event." });
+          fetchSessions();
+        } else {
+          toast({ title: "Processing payment…", description: "We'll confirm your ticket shortly." });
+        }
       } catch (err) {
-        console.error('Error adding participant after ticket purchase:', err);
+        console.error('Error verifying ticket purchase:', err);
+        toast({
+          title: "Couldn't verify ticket",
+          description: "If you were charged, please contact support.",
+          variant: "destructive",
+        });
       }
 
       // Clean URL params
@@ -223,7 +254,7 @@ export const SessionsSection = ({ userLocation }: SessionsSectionProps) => {
       setSearchParams(searchParams, { replace: true });
     };
 
-    addParticipant();
+    confirmTicket();
   }, [searchParams, user]);
 
   return (
