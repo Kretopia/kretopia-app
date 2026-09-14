@@ -2,6 +2,11 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { resolveStripeSecretKey } from "../_shared/stripeEnv.ts";
+import {
+  isKnownSubscriptionTier,
+  resolveSubscriptionPriceId,
+  type PriceInterval,
+} from "../_shared/subscriptionPrices.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,10 +30,15 @@ serve(async (req) => {
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated or email not available");
 
-    const { priceId } = await req.json();
-    if (!priceId) throw new Error("Price ID is required");
+    const { tier, interval } = await req.json();
+    if (!tier || !isKnownSubscriptionTier(tier)) throw new Error("Unknown or missing subscription tier");
+    const normalizedInterval: PriceInterval = interval === "yearly" ? "yearly" : "monthly";
+    // Resolved server-side (test vs. live) from STRIPE_MODE — never trust a
+    // client-supplied Price ID, since the frontend has no visibility into
+    // which Stripe mode the backend is running in.
+    const priceId = resolveSubscriptionPriceId(tier, normalizedInterval);
 
-    const stripe = new Stripe(resolveStripeSecretKey(), { 
+    const stripe = new Stripe(resolveStripeSecretKey(), {
       apiVersion: "2025-08-27.basil" 
     });
     
