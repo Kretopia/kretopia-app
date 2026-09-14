@@ -3841,6 +3841,7 @@ export type Database = {
           payment_verified: boolean | null
           platform: string | null
           primary_media_url: string | null
+          project_id: string | null
           project_name: string
           project_type: string | null
           role: string
@@ -3881,6 +3882,7 @@ export type Database = {
           payment_verified?: boolean | null
           platform?: string | null
           primary_media_url?: string | null
+          project_id?: string | null
           project_name: string
           project_type?: string | null
           role: string
@@ -3921,6 +3923,7 @@ export type Database = {
           payment_verified?: boolean | null
           platform?: string | null
           primary_media_url?: string | null
+          project_id?: string | null
           project_name?: string
           project_type?: string | null
           role?: string
@@ -3940,7 +3943,65 @@ export type Database = {
           view_count?: number | null
           year?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "credits_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_evidence: {
+        Row: {
+          actor_role: string | null
+          actor_user_id: string | null
+          created_at: string
+          credit_id: string
+          detail: Json
+          id: string
+          kind: string
+          source_id: string | null
+          source_table: string | null
+          status: string
+          summary: string | null
+        }
+        Insert: {
+          actor_role?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          credit_id: string
+          detail?: Json
+          id?: string
+          kind: string
+          source_id?: string | null
+          source_table?: string | null
+          status?: string
+          summary?: string | null
+        }
+        Update: {
+          actor_role?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          credit_id?: string
+          detail?: Json
+          id?: string
+          kind?: string
+          source_id?: string | null
+          source_table?: string | null
+          status?: string
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_evidence_credit_id_fkey"
+            columns: ["credit_id"]
+            isOneToOne: false
+            referencedRelation: "credits"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       crew_feed_post_comments: {
         Row: {
@@ -19696,6 +19757,10 @@ export type Database = {
         Returns: boolean
       }
       complete_review_request: { Args: { p_token: string }; Returns: boolean }
+      confirm_credit_as_client: {
+        Args: { _credit_id: string; _note?: string }
+        Returns: Json
+      }
       confirm_invoice_paid_manually: {
         Args: { p_invoice_id: string; p_payment_method: string }
         Returns: Json
