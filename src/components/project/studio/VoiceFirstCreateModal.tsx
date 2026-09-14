@@ -739,8 +739,11 @@ export const VoiceFirstCreateModal = ({
 
       <HoloCard className="w-full max-w-lg relative z-10 my-8">
         <div className="relative flex flex-col max-h-[85vh] overflow-hidden rounded-2xl border border-primary/10 bg-card shadow-xl shadow-primary/5">
-          {/* Top bar */}
-          <div className="relative z-10 flex items-center gap-3 px-4 h-16 shrink-0 border-b border-border/40">
+          {/* Top bar -- py-3 (not a fixed h-16) so the stepper's active-step
+              ring/scale bleed gets real clearance above and below, same
+              generous-padding spirit as Onboarding's own pt-6 pb-3 header
+              this was meant to match; a fixed height left almost no room. */}
+          <div className="relative z-10 flex items-center gap-3 px-4 py-3 shrink-0 border-b border-border/40">
             <span
               id="new-room-title"
               className="text-xs font-bold tracking-[0.22em] uppercase text-[hsl(var(--energy))] shrink-0"
