@@ -765,6 +765,7 @@ When you respond in natural language (after tools), keep it to 1–2 sentences, 
             .from("credits")
             .insert({
               user_id: user.id,
+              project_id: project?.id || null,
               project_name: project?.title || "Untitled project",
               role: String(args.role || "Contributor").slice(0, 80),
               year: args.year || new Date().getFullYear(),
