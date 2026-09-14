@@ -548,6 +548,13 @@ export const VoiceFirstCreateModal = ({
         .single();
       if (error) throw error;
 
+      const { error: engagementError } = await supabase.from("engagements").insert({
+        project_id: project.id,
+        mode: "direct",
+        created_by: user.id,
+      });
+      if (engagementError) console.error("[NewRoom] engagement insert failed", engagementError);
+
       // Pick which deliverables to seed
       const all = (brief.deliverables ?? []).slice(0, 8);
       const picked =

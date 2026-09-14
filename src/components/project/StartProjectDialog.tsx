@@ -235,6 +235,13 @@ export function StartProjectDialog({
 
       if (projectError) throw projectError;
 
+      const { error: engagementError } = await supabase.from('engagements').insert({
+        project_id: project.id,
+        mode: 'direct',
+        created_by: user.id,
+      });
+      if (engagementError) console.error('[StartProjectDialog] engagement insert failed', engagementError);
+
       // Get user profile for inviter name
       const { data: userProfile } = await supabase
         .from('profiles')

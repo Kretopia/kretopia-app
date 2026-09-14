@@ -13316,6 +13316,84 @@ export type Database = {
           },
         ]
       }
+      engagements: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          mode: string
+          org_id: string | null
+          project_id: string
+          source_application_id: string | null
+          source_match_id: string | null
+          source_opportunity_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          mode: string
+          org_id?: string | null
+          project_id: string
+          source_application_id?: string | null
+          source_match_id?: string | null
+          source_opportunity_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          mode?: string
+          org_id?: string | null
+          project_id?: string
+          source_application_id?: string | null
+          source_match_id?: string | null
+          source_opportunity_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagements_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagements_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagements_source_opportunity_id_fkey"
+            columns: ["source_opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagements_source_application_id_fkey"
+            columns: ["source_application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagements_source_match_id_fkey"
+            columns: ["source_match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_collaborators: {
         Row: {
           accepted_at: string | null

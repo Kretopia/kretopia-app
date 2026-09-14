@@ -252,6 +252,13 @@ export function StartProjectFromMatchDialog({
 
       if (projectError) throw projectError;
 
+      const { error: engagementError } = await supabase.from('engagements').insert(
+        matchId
+          ? { project_id: project.id, mode: 'match', source_match_id: matchId, created_by: user.id }
+          : { project_id: project.id, mode: 'direct', created_by: user.id }
+      );
+      if (engagementError) console.error('[StartProjectFromMatch] engagement insert failed', engagementError);
+
       // Get user profile for inviter name
       const { data: userProfile } = await supabase
         .from('profiles')
