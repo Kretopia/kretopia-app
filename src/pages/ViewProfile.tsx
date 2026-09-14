@@ -63,7 +63,6 @@ import { HireMeTrustBar } from "@/components/passport/HireMeTrustBar";
 import { PassportMomentum } from "@/components/passport/PassportMomentum";
 import { BookedThisMonthChip } from "@/components/passport/BookedThisMonthChip";
 import { ReplySLABadge } from "@/components/passport/ReplySLABadge";
-import { PROFILE_SELECT } from "@/lib/profile/profileColumns";
 
 interface Profile {
   user_id: string;
@@ -167,10 +166,30 @@ const ViewProfile = () => {
     
     setIsLoading(true);
     try {
-      // Fetch profile
+      // Fetch profile — this branch only ever runs for someone OTHER than
+      // the profile owner (the effect above redirects an owner viewing
+      // their own userId to /profile before we get here). RLS on the base
+      // `profiles` table is owner-only as of migration 20260502224404, so
+      // a raw `.from('profiles')` read here always came back empty for
+      // every other logged-in viewer — the exact bug this fixes.
+      // public_profiles_safe is the existing, already-granted-to-anon/
+      // authenticated safe path (same one CreatorEPK, HandleResolver, and
+      // Circle's Browse tab already use). Its column list is a subset of
+      // PROFILE_SELECT — see CreatorEPK's field-gap note in
+      // PASSPORT_AND_CONVERSION_AUDIT.md for what's temporarily absent
+      // (company_name/company_industry/company_logo_url, achievement_badges,
+      // collab_intent, rate_range, average_rating, total_reviews, is_claimed,
+      // hourly_rate/project_rate/rate_currency, avg_response_hours,
+      // availability_status/note, social follower counts, social_verified,
+      // job_title, industry, profile_frame, email_verified/phone_verified/
+      // payment_verified, video_intro_url) until a follow-up migration
+      // extends the view. Every downstream usage of these fields already
+      // handles undefined gracefully (optional chaining / conditional
+      // rendering), confirmed by reading this file fully before making
+      // this change.
       const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select(PROFILE_SELECT)
+        .from('public_profiles_safe')
+        .select('user_id, full_name, role, bio, location, avatar_url, account_type, verification_tier, verification_status, professional_skills, badge, id_verified')
         .eq('user_id', userId)
         .maybeSingle();
 
@@ -178,19 +197,14 @@ const ViewProfile = () => {
       if (!profileData) return;
       // Company accounts store their identity under company_name/
       // company_industry/company_logo_url rather than full_name/role/
-      // avatar_url — this page only ever rendered the latter, so viewing
-      // any brand's profile through here showed a blank name and role
-      // instead of the company's identity. Normalize once here rather
-      // than special-casing every render site below.
-      const normalized = profileData.account_type === "company"
-        ? {
-            ...profileData,
-            full_name: profileData.company_name || profileData.full_name,
-            role: profileData.company_industry || profileData.role,
-            avatar_url: profileData.company_logo_url || profileData.avatar_url,
-          }
-        : profileData;
-      setProfile(normalized);
+      // avatar_url. Those columns aren't in public_profiles_safe (see the
+      // field-gap note above), so the company_name → full_name normalization
+      // this page previously did for non-owner viewers can't happen here
+      // anymore — a company's `full_name`/`role`/`avatar_url` columns are
+      // used as-is instead, same as any individual account, until a
+      // follow-up migration exposes the company_* columns through the
+      // safe view too.
+      setProfile(profileData);
 
       // Fetch portfolio items (credits with source=portfolio)
       const { data: portfolioData } = await supabase
@@ -212,10 +226,12 @@ const ViewProfile = () => {
         .order('created_at', { ascending: false });
 
       if (reviewsData) {
-        // Fetch reviewer profiles
+        // Fetch reviewer profiles — same non-owner-read issue as above,
+        // reviewers are essentially always someone other than the current
+        // viewer, so this also needs the safe view rather than the raw table.
         const reviewerIds = reviewsData.map(r => r.reviewer_id);
         const { data: reviewerProfiles } = await supabase
-          .from('profiles')
+          .from('public_profiles_safe')
           .select('user_id, full_name, avatar_url, role')
           .in('user_id', reviewerIds);
 
