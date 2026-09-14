@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { SEO } from "@/components/SEO";
 import { APP_URL } from "@/lib/constants";
 import type { ContentBlock } from "@/components/creator-site/blocks/BlockTypes";
@@ -50,6 +51,7 @@ export interface CreatorSiteData {
 const CreatorSite = () => {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState<CreatorSiteData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -59,21 +61,51 @@ const CreatorSite = () => {
   useEffect(() => {
     const fetchSiteData = async () => {
       if (!userId) { setNotFound(true); setLoading(false); return; }
+      if (authLoading) return;
 
-      // Fetch profile - check if site is enabled
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('user_id, full_name, role, bio, location, avatar_url, cover_image_url, website, calendly_url, linkedin_url, instagram_url, twitter_url, youtube_url, spotify_url, rate_range, site_template, site_enabled, site_headline, site_bio, site_sections, site_custom_blocks, professional_skills, subscription_tier, username')
-        .eq('user_id', userId)
-        .maybeSingle();
+      // RLS on the base `profiles` table is owner-only as of migration
+      // 20260502224404, so a raw `.from('profiles')` read here returned
+      // nothing for any visitor besides the site's own owner — the exact
+      // bug this fixes (an anonymous visitor, or any other logged-in user,
+      // opening a shared creator-site link got "Site Not Found").
+      //
+      // The owner keeps reading their own row directly (works today via
+      // RLS) because it's the only path that exposes site_enabled /
+      // subscription_tier (the gate below) and the actual page content —
+      // site_template, site_headline, site_bio, site_sections,
+      // site_custom_blocks. None of those are in public_profiles_safe yet.
+      // Everyone else goes through that view — the existing, already-
+      // granted-to-anon safe path CreatorEPK already uses — but since the
+      // gate and the template content aren't in it, a non-owner can't be
+      // shown the actual custom site under the current schema; they fall
+      // back to the regular profile page below instead of a dead "Site Not
+      // Found", which is the best available fix without a follow-up
+      // migration extending the safe view/RPC to cover the site-builder
+      // columns (tracked alongside CreatorEPK's own documented field-gap
+      // in PASSPORT_AND_CONVERSION_AUDIT.md).
+      const isOwner = !!user && user.id === userId;
+      const { data: profile, error } = isOwner
+        ? await supabase
+            .from('profiles')
+            .select('user_id, full_name, role, bio, location, avatar_url, cover_image_url, website, calendly_url, linkedin_url, instagram_url, twitter_url, youtube_url, spotify_url, rate_range, site_template, site_enabled, site_headline, site_bio, site_sections, site_custom_blocks, professional_skills, subscription_tier, username')
+            .eq('user_id', userId)
+            .maybeSingle()
+        : await supabase
+            .from('public_profiles_safe')
+            .select('user_id, full_name, role, bio, location, avatar_url, cover_image_url, linkedin_url, instagram_url, twitter_url, youtube_url, spotify_url, professional_skills, username')
+            .eq('user_id', userId)
+            .maybeSingle();
 
       if (error || !profile) { setNotFound(true); setLoading(false); return; }
 
-      // Check if site is enabled and user has pro access
+      // Check if site is enabled and user has pro access. For a non-owner
+      // read, site_enabled/subscription_tier are always absent (see above),
+      // so this intentionally — and safely — falls through to the regular
+      // profile page rather than ever rendering a template with no content.
       const proTiers = ['pro', 'creator_pro', 'founder'];
-      const hasPro = proTiers.includes(profile.subscription_tier || '');
-      
-      if (!profile.site_enabled || !hasPro) {
+      const hasPro = proTiers.includes((profile as any).subscription_tier || '');
+
+      if (!(profile as any).site_enabled || !hasPro) {
         // Redirect to regular profile
         navigate(`/profile/${userId}`, { replace: true });
         return;
@@ -132,7 +164,7 @@ const CreatorSite = () => {
       }));
 
       setData({
-        profile: { ...profile, site_custom_blocks: (profile.site_custom_blocks as any) || [] },
+        profile: { ...(profile as any), site_custom_blocks: (profile as any).site_custom_blocks || [] },
         services: servicesWithTiers,
         credits: creditsRes.data || [],
         reviews: reviewsRes.data || [],
@@ -142,7 +174,7 @@ const CreatorSite = () => {
     };
 
     fetchSiteData();
-  }, [userId, navigate]);
+  }, [userId, navigate, user, authLoading]);
 
   if (loading) {
     return (

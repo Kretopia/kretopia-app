@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { CompCardPreview } from "@/components/passport/model/CompCardPreview";
 import { BrandLoader } from "@/components/brand/BrandDots";
 import { Helmet } from "react-helmet-async";
@@ -12,18 +13,45 @@ import { Helmet } from "react-helmet-async";
  */
 export default function CompCard() {
   const { userId } = useParams<{ userId: string }>();
+  const { user, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState<any | null>(null);
   const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || authLoading) return;
     (async () => {
-      const { data: p } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url, portfolio_links, mother_agency, model_unions, model_categories, model_stats, comp_card_layout, sub_roles")
-        .eq("user_id", userId)
-        .maybeSingle();
+      // RLS on the base `profiles` table is owner-only as of migration
+      // 20260502224404, so a non-owner opening a shared comp-card link
+      // (anonymous visitor, or any other logged-in user) got nothing back
+      // from this raw `.from('profiles')` read — the exact bug this fixes.
+      // The owner still reads their own row directly (works today via RLS,
+      // and is the only path that currently exposes comp_card_layout /
+      // model_stats / mother_agency / model_unions / model_categories).
+      // Everyone else goes through public_profiles_safe — the existing,
+      // already-granted-to-anon safe path CreatorEPK already uses — but
+      // that view doesn't (yet) expose those model-specific columns, so a
+      // non-owner viewer falls back to headshot-only (avatar_url) with no
+      // agency/stats/extra slots until a follow-up migration extends the
+      // view (tracked alongside CreatorEPK's own documented field-gap in
+      // PASSPORT_AND_CONVERSION_AUDIT.md). That's strictly better than
+      // today's total "Comp card not found" for anyone but the owner.
+      //
+      // Also drops `portfolio_links` from the old select: it isn't a real
+      // column on `profiles` (it lives on `applications`), so the fallback
+      // below never actually got anything from it.
+      const isOwner = !!user && user.id === userId;
+      const { data: p } = isOwner
+        ? await supabase
+            .from("profiles")
+            .select("user_id, full_name, avatar_url, mother_agency, model_unions, model_categories, model_stats, comp_card_layout, sub_roles")
+            .eq("user_id", userId)
+            .maybeSingle()
+        : await supabase
+            .from("public_profiles_safe")
+            .select("user_id, full_name, avatar_url")
+            .eq("user_id", userId)
+            .maybeSingle();
 
       const layout: any = (p as any)?.comp_card_layout;
       const imgs: string[] = Array.from({ length: 5 }, () => "") as string[];
@@ -34,8 +62,8 @@ export default function CompCard() {
           }
         });
       }
-      // Fill any empty slots with avatar + portfolio_links fallback
-      const fallback = [(p as any)?.avatar_url, ...((p as any)?.portfolio_links || [])].filter(Boolean) as string[];
+      // Fill any empty slots with an avatar fallback
+      const fallback = [(p as any)?.avatar_url].filter(Boolean) as string[];
       let fi = 0;
       for (let i = 0; i < 5; i++) {
         if (!imgs[i]) {
@@ -47,7 +75,7 @@ export default function CompCard() {
       setProfile(p);
       setLoading(false);
     })();
-  }, [userId]);
+  }, [userId, user, authLoading]);
 
   if (loading) return <div className="min-h-screen grid place-items-center bg-background"><BrandLoader /></div>;
   if (!profile) return <div className="min-h-screen grid place-items-center text-muted-foreground">Comp card not found</div>;
