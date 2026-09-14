@@ -103,7 +103,11 @@ serve(async (req) => {
       throw new Error("This creator hasn't finished setting up payouts yet — please try again later.");
     }
 
-    const session = await stripe.checkout.sessions.create(sessionParams);
+    // No pre-existing order row to key off (it's inserted after the session
+    // is created below), so the key is built from the stable inputs that
+    // identify "the same attempt": which link, how much, and who's paying.
+    const idempotencyKey = `payment-link-checkout-${link.id}-${cents}-${payer_email || "anon"}`;
+    const session = await stripe.checkout.sessions.create(sessionParams, { idempotencyKey });
 
     // Log a pending payment row (webhook flips it to paid)
     await admin.from("payment_link_payments").insert({

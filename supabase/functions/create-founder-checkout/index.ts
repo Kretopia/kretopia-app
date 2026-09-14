@@ -91,7 +91,7 @@ serve(async (req) => {
         user_id: user.id,
         type: 'founder_circle',
       },
-    });
+    }, { idempotencyKey: `founder-checkout-${user.id}` });
 
     logStep("Checkout session created", { sessionId: session.id });
 

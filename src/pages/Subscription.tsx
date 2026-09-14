@@ -100,7 +100,11 @@ export default function Subscription() {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke("create-checkout", { body: { priceId } });
+      // The edge function resolves the actual Stripe Price ID itself (mode-aware,
+      // test vs live) — it no longer trusts a raw Price ID from the client.
+      const { data, error } = await supabase.functions.invoke("create-checkout", {
+        body: { tier, interval: billingInterval },
+      });
       if (error) throw error;
       if (data?.url) window.open(data.url, "_blank");
     } catch (error: any) {

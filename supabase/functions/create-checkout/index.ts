@@ -2,6 +2,11 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { resolveStripeSecretKey } from "../_shared/stripeEnv.ts";
+import {
+  isSubscriptionInterval,
+  isSubscriptionPlanKey,
+  resolveSubscriptionPriceId,
+} from "../_shared/subscriptionPrices.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,11 +30,16 @@ serve(async (req) => {
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated or email not available");
 
-    const { priceId } = await req.json();
-    if (!priceId) throw new Error("Price ID is required");
+    const { tier, interval } = await req.json();
+    if (!isSubscriptionPlanKey(tier)) throw new Error("A valid subscription tier is required");
+    if (!isSubscriptionInterval(interval)) throw new Error("A valid billing interval is required");
 
-    const stripe = new Stripe(resolveStripeSecretKey(), { 
-      apiVersion: "2025-08-27.basil" 
+    // Resolved server-side (not trusted from the client) so the Price ID
+    // always matches the active STRIPE_MODE — see _shared/subscriptionPrices.ts.
+    const priceId = resolveSubscriptionPriceId(tier, interval);
+
+    const stripe = new Stripe(resolveStripeSecretKey(), {
+      apiVersion: "2025-08-27.basil"
     });
     
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
@@ -69,7 +79,13 @@ serve(async (req) => {
       };
     }
 
-    const session = await stripe.checkout.sessions.create(sessionParams);
+    // Stable across retries of the same logical request: same user + tier +
+    // interval + trial-eligibility resolve to the same key, so a client
+    // retry (or an SDK-level network retry) reuses the original session
+    // instead of opening a second one.
+    const idempotencyKey = `subscription-checkout-${user.id}-${tier}-${interval}-${hadPreviousSub ? "resub" : "trial"}`;
+
+    const session = await stripe.checkout.sessions.create(sessionParams, { idempotencyKey });
 
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

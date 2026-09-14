@@ -75,7 +75,10 @@ serve(async (req) => {
       throw new Error("This creator hasn't finished setting up payouts yet — please try again later.");
     }
 
-    const session = await stripe.checkout.sessions.create(params);
+    const session = await stripe.checkout.sessions.create(
+      params,
+      { idempotencyKey: `invoice-checkout-${invoice_id}` }
+    );
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

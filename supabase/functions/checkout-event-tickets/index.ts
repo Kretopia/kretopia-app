@@ -211,7 +211,7 @@ serve(async (req) => {
       success_url: `${origin}/event/${eventId}?ticket=success&order=${order.id}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/event/${eventId}?ticket=cancelled`,
       metadata: { order_id: order.id, event_id: eventId },
-    });
+    }, { idempotencyKey: `event-ticket-checkout-${order.id}` });
 
     await admin.from("event_orders")
       .update({ stripe_session_id: session.id })
