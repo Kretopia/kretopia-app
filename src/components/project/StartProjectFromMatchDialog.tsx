@@ -247,7 +247,11 @@ export function StartProjectFromMatchDialog({
           status: 'active' as const,
           match_id: matchId || null, // Link to match if exists
         })
-        .select()
+        // Explicit column, not bare .select() -- a wildcard SELECT after
+        // INSERT needs a grant on every column of the row, including the
+        // permanently-locked margin/client_price fields. Only .id is ever
+        // read below.
+        .select('id')
         .single();
 
       if (projectError) throw projectError;
