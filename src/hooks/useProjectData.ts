@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { hasProAccess } from "@/lib/subscriptionConfig";
+import { PROJECT_COLUMNS_EXCLUDING_LOCKED_FINANCIALS } from "@/lib/projectColumns";
 
 export interface Collaborator {
   id: string;
@@ -125,7 +126,7 @@ export function useProjectData(projectId: string | undefined) {
 
         const { data: projectData, error: projectError } = await supabase
           .from("projects")
-          .select("*")
+          .select(PROJECT_COLUMNS_EXCLUDING_LOCKED_FINANCIALS)
           .eq("id", projectId)
           .single();
         if (projectError) throw projectError;
@@ -156,12 +157,18 @@ export function useProjectData(projectId: string | undefined) {
         // client_price/creative_payout/margin_type/margin_value are no
         // longer selectable directly as of
         // 20260825100000_studio_role_based_money_rls.sql -- projectData
-        // above already has them silently omitted for non-owners.
-        // get_project_financials is owner-only (matches useStudioRole.ts's
-        // documented canSeeMoney intent); merge it in only when it
-        // succeeds, so a non-owner's projectData is left exactly as RLS
-        // returned it rather than faking these fields as null/0.
-        let projectWithFinancials = projectData;
+        // above never requests them (a missing column GRANT fails the
+        // whole query, it doesn't silently drop the column the way an RLS
+        // policy would, which is why the select above is an explicit list
+        // rather than "*"). get_project_financials is owner-only (matches
+        // useStudioRole.ts's documented canSeeMoney intent); merge it in
+        // only when it succeeds, so a non-owner's projectData is left
+        // without these fields rather than faking them as null/0.
+        // Widened to `any` for this merge only: get_project_financials adds
+        // back client_price/creative_payout/margin_type/margin_value, which
+        // the select above deliberately omits from projectData's inferred
+        // type (see comment above).
+        let projectWithFinancials: any = projectData;
         try {
           const { data: financials } = await supabase.rpc("get_project_financials" as any, {
             _project_id: projectId,

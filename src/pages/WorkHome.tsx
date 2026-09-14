@@ -70,6 +70,7 @@ import { CarouselPositionDots } from "@/components/ui/glass/CarouselPositionDots
 import { FeaturePageHeader } from "@/components/features/FeaturePageHeader";
 import { KretoTip } from "@/components/agent/KretoTip";
 import { STUDIO_TUTORIAL, STUDIO_BRAND_TUTORIAL } from "@/components/landing/kretopia/tutorialContent";
+import { PROJECT_COLUMNS_EXCLUDING_LOCKED_FINANCIALS } from "@/lib/projectColumns";
 
 interface ProjectPersonRow {
   user_id: string;
@@ -403,12 +404,15 @@ const CreatorWorkHome = () => {
     setLoading(true);
     try {
       // Unbounded select on the Studio dashboard's own primary list --
-      // every project, every column, on every load. Capped generously (a
-      // payload-size backstop, not real-world pagination) rather than
-      // left unbounded.
+      // every project on every load. Capped generously (a payload-size
+      // backstop, not real-world pagination) rather than left unbounded.
+      // Explicit column list, not "*": client_price/creative_payout/
+      // margin_type/margin_value are permanently locked down and a
+      // wildcard select fails the whole query with 42501 for every
+      // caller -- see src/lib/projectColumns.ts.
       const { data: projectsData } = await supabase
         .from("projects")
-        .select("*")
+        .select(PROJECT_COLUMNS_EXCLUDING_LOCKED_FINANCIALS)
         .order("updated_at", { ascending: false })
         .limit(200);
       const list = projectsData || [];
