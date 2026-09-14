@@ -3,6 +3,7 @@ import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { resolveStripeSecretKey } from "../_shared/stripeEnv.ts";
 import { getPlatformFeeRate } from "../_shared/platformFees.ts";
+import { resolveMilestonePayee } from "../_shared/resolveMilestonePayee.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -119,11 +120,23 @@ serve(async (req) => {
     let managerTableId: string | null = null;
     let managerStripeAccountId: string | null = null;
 
-    if (milestone?.created_by) {
+    // Who actually gets paid -- NOT necessarily milestone.created_by. On
+    // the primary "Brand creates the milestone" path, created_by is the
+    // Brand's own id, so looking up a manager referral by created_by would
+    // silently miss the real Creator's manager (and thus never attribute
+    // their commission). See _shared/resolveMilestonePayee.ts.
+    const payee = await resolveMilestonePayee(supabaseAdmin, milestone);
+    if (payee.ambiguous) {
+      logStep("WARNING: ambiguous milestone payee -- falling back to created_by", {
+        milestoneId, candidateCount: payee.candidateCount,
+      });
+    }
+
+    if (payee.payeeUserId) {
       const { data: referral } = await supabaseAdmin
         .from('talent_referrals')
         .select('manager_id, status')
-        .eq('talent_user_id', milestone.created_by)
+        .eq('talent_user_id', payee.payeeUserId)
         .eq('status', 'active')
         .limit(1)
         .maybeSingle();
