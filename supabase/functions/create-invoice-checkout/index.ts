@@ -75,7 +75,14 @@ serve(async (req) => {
       throw new Error("This creator hasn't finished setting up payouts yet — please try again later.");
     }
 
-    const session = await stripe.checkout.sessions.create(params);
+    // Idempotency key from invoice_id + charge amount: a double-click or
+    // network retry of "pay this invoice" reaches Stripe with the same key
+    // and gets deduped instead of creating a second Checkout Session. Once
+    // the invoice is marked paid, the status guard above stops this line
+    // from ever being reached again for it, so no time-window is needed.
+    const session = await stripe.checkout.sessions.create(params, {
+      idempotencyKey: `invoice-checkout:${invoice_id}:${cents}`,
+    });
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
