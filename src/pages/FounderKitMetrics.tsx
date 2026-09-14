@@ -21,7 +21,10 @@ async function load(): Promise<Metric[]> {
     safeCount(sb.from("scouted_gigs").select("*", { count: "exact", head: true }).gte("created_at", since)),
     safeCount(sb.from("sponsor_leads").select("*", { count: "exact", head: true })),
     safeCount(sb.from("agent_runs").select("*", { count: "exact", head: true }).gte("created_at", since)),
-    safeCount(sb.from("projects").select("*", { count: "exact", head: true })),
+    // "id" not "*" -- client_price/creative_payout/margin_type/margin_value
+    // are permanently locked down, and a wildcard select fails the whole
+    // query with 42501 even for a headers-only count (see src/lib/projectColumns.ts).
+    safeCount(sb.from("projects").select("id", { count: "exact", head: true })),
   ]);
 
   return [

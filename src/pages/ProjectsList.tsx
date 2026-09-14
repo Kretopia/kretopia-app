@@ -13,6 +13,7 @@ import { MyPendingInvitations } from "@/components/project/MyPendingInvitations"
 import { StudioCardsGrid } from "@/components/project/studio/StudioCardsGrid";
 import { VoiceFirstCreateModal } from "@/components/project/studio/VoiceFirstCreateModal";
 import { StudioFoldersBar, type StudioFolder } from "@/components/project/studio/StudioFoldersBar";
+import { PROJECT_COLUMNS_EXCLUDING_LOCKED_FINANCIALS } from "@/lib/projectColumns";
 
 const ProjectsList = () => {
   const navigate = useNavigate();
@@ -70,9 +71,13 @@ const ProjectsList = () => {
   const fetchProjects = async () => {
     try {
       setLoading(true);
+      // Explicit column list, not "*": client_price/creative_payout/
+      // margin_type/margin_value are permanently locked down and a
+      // wildcard select fails the whole query with 42501 for every
+      // caller -- see src/lib/projectColumns.ts.
       const { data: projectsData, error } = await supabase
         .from("projects")
-        .select("*")
+        .select(PROJECT_COLUMNS_EXCLUDING_LOCKED_FINANCIALS)
         .order("updated_at", { ascending: false });
       if (error) throw error;
       const list = projectsData || [];

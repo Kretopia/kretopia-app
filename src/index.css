@@ -1336,6 +1336,19 @@ body:has(> [data-state="open"][role="dialog"]) .snap-receipt-fab {
 }
 .cta-solid::before { display: none !important; content: none !important; }
 
+/* Button's shared base class applies disabled:opacity-50 to the whole
+   element -- for a light-fill/dark-text CTA like this one, fading BOTH
+   ends of that high-contrast pair by the same amount drags them toward
+   the same mid-grey and the label/icon disappear entirely (measured:
+   ~1:1 contrast, effectively invisible). Dim only the fill instead of the
+   whole element, and keep the label at full opacity so a disabled CTA
+   still reads as "here, just not yet" rather than a blank grey box. */
+.cta-solid:disabled {
+  opacity: 1 !important;
+  background-color: hsl(var(--primary) / 0.4) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
 /* ── LANDING PRIMARY CTA — grey-to-pink gradient ─────────────────────
    The Landing conversion overhaul calls for a literal grey-to-pink
    linear-gradient fill for its highest-weight CTAs (Hero, Claim
