@@ -70,7 +70,7 @@ Functions grouped by owning system. `→` = recommended state. Bold = needs chan
 | `lookup-auth-providers` | Suggest provider from email | 🟡 Public | Public + rate-limit | Medium (enumeration) | Add IP rate-limit | P1 |
 | `merge-accounts-init` | Start account merge | ✅ Auth user | Keep | High (PII) | — | — |
 | `merge-accounts-verify` | Verify merge token | 🟡 Public (token-gated) | Keep | Medium | Confirm token TTL ≤ 15m | P2 |
-| `merge-accounts-lookup` | Lookup target account | 🔴 No check | **Auth user** | High | Add JWT check | **P0** |
+| `merge-accounts-lookup` | Lookup target account | 🔴 No check | **Auth user** | High | Add JWT check | **P0** — ✅ FIXED (confirmed 2026-09-15): `supabase/functions/merge-accounts-lookup/index.ts:17-23` now requires `userClient.auth.getUser()` to resolve a caller before proceeding (401 otherwise); the response was also trimmed to a masked email only (no `full_name`/`avatar_url`), closing the account-enumeration angle too |
 
 ### 3.2 Passport / Profile (21)
 
@@ -79,7 +79,7 @@ Functions grouped by owning system. `→` = recommended state. Bold = needs chan
 | `claim-and-create-profile` | Claim flow | ✅ Auth | Keep | High | — | — |
 | `verify-profile`, `verify-profile-claim` | Verification | ✅ Auth | Keep | High | — | — |
 | `verify-credentials` | Cert/edu check | ✅ Auth | Keep | High (PII) | — | — |
-| `update-verification-score` | Score recompute | 🔴 No check | **Internal-only** | High | Reject direct, expose via DB trigger | **P0** |
+| `update-verification-score` | Score recompute | 🔴 No check | **Internal-only** | High | Reject direct, expose via DB trigger | **P0** — ✅ FIXED (confirmed 2026-09-15): `supabase/functions/update-verification-score/index.ts:20-53` now requires a Bearer JWT, resolves the caller via `auth.getClaims()`, and rejects (403) any request whose body `userId` doesn't match the caller — recompute is now self-service-only, not the "internal-only" shape originally recommended, but the auth gap itself is closed |
 | `update-unclaimed-profiles` | Bulk update | ✅ Cron | Keep | Medium | — | — |
 | `import-profile-url`, `import-profile-from-url` | URL import | ✅ Auth | Keep — **dedupe (duplicate)** | Medium | Phase 3 consolidate | P2 |
 | `auto-discover-creatives`, `discover-creators`, `discover-profiles`, `enrich-creator-profile`, `batch-enrich-profiles` | Discovery + enrichment | 🟡 Cron + auth | Keep | High (PII bulk) | Add bulk-write rate limit | P1 |
@@ -130,7 +130,7 @@ Functions grouped by owning system. `→` = recommended state. Bold = needs chan
 | `suggest-studio-folders` | ✅ Auth | Keep | Low | — | — |
 | `voice-to-task`, `enhance-task`, `enhance-gig`, `enhance-listing-ai` | ✅ Auth | Keep | Low | — | — |
 | `redeem-project-guest-link`, `redeem-project-share`, `mint-meeting-token`, `mint-video-token` | 🟡 Public (token-gated) | Keep | Medium | Confirm token single-use | P1 |
-| `scope-guardian` | 🔴 No check | **Auth user (project owner)** | Medium | Add JWT + membership | **P1** |
+| `scope-guardian` | 🔴 No check | **Auth user (project owner)** | Medium | Add JWT + membership | **P1** — ✅ FIXED (confirmed 2026-09-15): `supabase/functions/scope-guardian/index.ts:14-28` now requires a valid Bearer JWT via `supabase.auth.getUser(token)` (401 otherwise), and when a `projectId` is supplied, lines 44-68 call `user_has_project_access` and reject with 403 before any project/milestone data is read — closes the IDOR this row was also tracking |
 
 ### 3.6 Scout / Gigs (16)
 
@@ -270,7 +270,7 @@ These are **the most critical** for PII + money.
 | `activate-og-promotion` | ✅ Auth | Keep | Low | — | — |
 | `refresh-my-universe`, `weekly-universe-scan` | ✅ Auth / Cron | Keep | Medium | — | — |
 | `onboarding-discover`, `get-onboarding-matches` | ✅ Auth | Keep | Medium | — | — |
-| `get-download-urls` | 🔴 No check | **Auth user (file owner)** | High | Add JWT + ownership check | **P0** |
+| `get-download-urls` | 🔴 No check | **Auth user (file owner)** | High | Add JWT + ownership check | **P0** — ✅ FIXED (confirmed 2026-09-15): `supabase/functions/get-download-urls/index.ts:16-39` now requires a Bearer JWT resolved via `auth.getClaims()`, and lines 71-76/88-112 verify the caller is the order's `buyer_id` (or has a matching `digital_product_purchases`/`marketplace_orders` row) before minting any signed URL |
 
 ### 3.15 ThriveFund (4)
 
@@ -299,9 +299,9 @@ These are **the most critical** for PII + money.
 
 | # | Function | Issue | Effort |
 |---|---|---|---|
-| 1 | `get-download-urls` | No auth check → any signed file URL minteable | S |
-| 2 | `update-verification-score` | No auth → score manipulation | S |
-| 3 | `merge-accounts-lookup` | No auth → account enumeration | S |
+| 1 | `get-download-urls` | No auth check → any signed file URL minteable | S — ✅ FIXED (confirmed 2026-09-15), see §3.14 |
+| 2 | `update-verification-score` | No auth → score manipulation | S — ✅ FIXED (confirmed 2026-09-15), see §3.2 |
+| 3 | `merge-accounts-lookup` | No auth → account enumeration | S — ✅ FIXED (confirmed 2026-09-15), see §3.1 |
 | 4 | `transcribe-call`, `transcribe-voice-note` | No signature → spoof transcripts | M |
 | 5 | **AUDIT (no code change)** every `create-*-checkout` / `create-*-payment` recomputes amount server-side | Tampering risk | M |
 | 6 | **AUDIT** `thrive-memory-tool` cannot read other users' memory | Cross-tenant leak | S |
@@ -310,7 +310,7 @@ These are **the most critical** for PII + money.
 ### B. P1 — Important, before Phase 3 (≤ 30 days, 16 items)
 
 - `verify-credit` add JWT + creator check.
-- `scope-guardian` add JWT + project owner.
+- `scope-guardian` add JWT + project owner. — ✅ FIXED (confirmed 2026-09-15), see §3.5.
 - `notify-swipe`, `send-push-notification`, `enrich-credits`, `enrich-press-links`, `notify-speed-pool-ping`, `notify-speed-session-update` → header-secret as internal-only.
 - 4 cron functions still bypassing `requireAdminOrCron` (per manifest) → finish standardization.
 - SSRF allow-list on `scrape-thumbnail` / `fetch-link-metadata` / `fetch-og-data` / `fetch-portfolio-data`.

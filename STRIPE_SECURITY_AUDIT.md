@@ -18,11 +18,11 @@
 | `checkout-event-tickets` | Create checkout / free-ticket for event | n/a | none (price/discount from DB) | yes | yes | none |
 | `checkout-stage-ticket` | Create checkout for paid stage ticket | n/a | none (price from DB) | yes | yes | none |
 | `create-checkout` | Subscription checkout | n/a | Stripe `priceId` (catalog-scoped, not amount) | n/a | n/a | minor |
-| `create-connect-payment` | Generic Connect-destination checkout | n/a | **amount + recipientAccountId** | **no** | no | major (unreferenced by frontend — see note) |
+| `create-connect-payment` | Generic Connect-destination checkout | n/a | **amount + recipientAccountId** | **no** | no | major (unreferenced by frontend — see note) — ✅ FIXED (confirmed 2026-09-15): function deleted |
 | `create-founder-checkout` | Fixed-price Founder Circle checkout | n/a | none (hardcoded price) | n/a (self) | yes | none |
 | `create-invoice-checkout` | Public invoice-payment checkout | n/a | none (amount from DB invoice) | n/a (intentionally public) | partial | minor |
-| `create-milestone-payment` | Milestone checkout (escrow or immediate) | n/a | none for amount (fixed this session) | **no** (new finding — see below) | yes | moderate |
-| `create-payment` | Generic wallet top-up checkout (dead code) | n/a | **amount + type** | n/a (self) | no persisted record | minor (dead code, no completion handler) |
+| `create-milestone-payment` | Milestone checkout (escrow or immediate) | n/a | none for amount (fixed this session) | **no** (new finding — see below) | yes | moderate — ✅ FIXED (confirmed 2026-09-15) |
+| `create-payment` | Generic wallet top-up checkout (dead code) | n/a | **amount + type** | n/a (self) | no persisted record | minor (dead code, no completion handler) — ✅ FIXED (confirmed 2026-09-15): function deleted |
 | `create-payment-link-checkout` | Public payment-link checkout | n/a | amount (bounded by DB min/max for variable links only) | n/a (intentionally public) | yes | minor |
 | `get-payment-intent` | Read-only Stripe session lookup | n/a | none | n/a (public by design) | n/a | none |
 | `guest-wallet-me` | Read-only guest wallet view | n/a | none | yes (token-scoped) | n/a | none |
@@ -33,11 +33,11 @@
 | `payment-link-info` | Public read of a payment link | n/a | none | n/a (public by design) | n/a | none |
 | `release-escrow` | Buyer confirm/dispute of marketplace escrow | n/a | none (amount from DB order) | yes | yes | none |
 | `send-invoice-chase` | Drafts/sends payment-chase email | n/a | none | yes | n/a | none (not a money-mover) |
-| `stripe-marketplace-webhook` | Webhook: invoice/payment-link/milestone/marketplace order | **yes** | none | n/a | partial (see findings) | minor |
+| `stripe-marketplace-webhook` | Webhook: invoice/payment-link/milestone/marketplace order | **yes** | none | n/a | partial (see findings) | minor — ✅ FIXED (confirmed 2026-09-15): event-ID dedup added |
 | `stripe-wallet-webhook` | Webhook: Connect account + payout status sync | **yes** | none | n/a | yes | none |
-| `thrivefund-release-milestone` | Creator releases campaign milestone tranche | n/a | milestoneIndex (bounds-checked) | yes | **no** | **critical** |
-| `verify-circle-payment` | "Confirms" paid Circle subscription | n/a | status (implicitly, via no check at all) | yes (self only) | n/a | **critical** |
-| `verify-founder-payment` | Confirms founder checkout, grants tier+XP | n/a | none for amount | **partial** (no session-owner check) | yes | moderate |
+| `thrivefund-release-milestone` | Creator releases campaign milestone tranche | n/a | milestoneIndex (bounds-checked) | yes | **no** | **critical** — ✅ FIXED (confirmed 2026-09-15) |
+| `verify-circle-payment` | "Confirms" paid Circle subscription | n/a | status (implicitly, via no check at all) | yes (self only) | n/a | **critical** — ✅ FIXED (confirmed 2026-09-15) |
+| `verify-founder-payment` | Confirms founder checkout, grants tier+XP | n/a | none for amount | **partial** (no session-owner check) | yes | moderate — ✅ FIXED (confirmed 2026-09-15) |
 | `wallet-add-bank` | Provision Connect account + bank account | n/a | bank details (expected) | yes | n/a | none |
 | `wallet-balance` | Read-only Connect balance | n/a | none | yes | n/a | none |
 | `wallet-payout` | Creator payout from own Connect balance | n/a | amount_cents (own balance, Stripe-enforced) | yes | no idempotency key | minor |
@@ -53,6 +53,8 @@
 ## Critical findings (detail)
 
 ### `verify-circle-payment` — grants paid Circle membership with **zero Stripe verification**
+
+> **✅ FIXED (confirmed 2026-09-15)** — see `supabase/functions/verify-circle-payment/index.ts:48-66`. The function now instantiates a real Stripe client, calls `stripe.checkout.sessions.retrieve(sessionId)`, and requires `session.payment_status === "paid"`, `session.metadata?.type === "circle_subscription"`, `session.metadata?.circle_id === circleId`, and `session.metadata?.buyer_id === user.id` before touching `circle_subscriptions`. Confirmed by direct read of current source, not assumed from the commit message.
 
 `supabase/functions/verify-circle-payment/index.ts:1-87`
 
@@ -72,6 +74,8 @@
 
 ### `thrivefund-release-milestone` — no idempotency guard on real Stripe transfers
 
+> **✅ FIXED (confirmed 2026-09-15)** — see `supabase/functions/thrivefund-release-milestone/index.ts:86-149`. The function now inserts a reservation row into `public.thrivefund_milestone_releases` (composite-key primary key on `campaign_id`/`milestone_index`, backed by migration `20260818120000_thrivefund_milestone_release_idempotency.sql`) *before* calling Stripe, rejecting a duplicate with a 409 if the insert hits a `23505` unique violation, and additionally passes a deterministic `idempotencyKey: thrivefund_milestone_${campaignId}_${milestoneIndex}` to `stripe.transfers.create()` as defense-in-depth. Confirmed by direct read of current source.
+
 `supabase/functions/thrivefund-release-milestone/index.ts:20-107`
 
 1. **Action**: creates a real `stripe.transfers.create()` (line 77) moving a percentage tranche of a crowdfunding campaign's raised total to the creator's Stripe Connect account.
@@ -89,6 +93,8 @@
 
 ### `create-milestone-payment` — missing ownership check (new finding, distinct from the already-fixed amount-trust issue)
 
+> **✅ FIXED (confirmed 2026-09-15)** — see `supabase/functions/create-milestone-payment/index.ts:85-97`. The function now looks up the milestone's project (`client_user_id`, `created_by`) and rejects with a 403 (`"You are not authorized to pay this milestone."`) unless the caller is one of those two. Confirmed by direct read of current source.
+
 `supabase/functions/create-milestone-payment/index.ts:30-284`
 
 The prior session's fix (using the milestone's own DB `amount` column, and the `milestone.status === 'paid'` 409 guard) is present and correct — confirmed at lines 74-104 and 91-97.
@@ -101,6 +107,8 @@ However, **nothing in this function checks that the calling user is the project'
 
 ### `verify-founder-payment` — no check that the Stripe session belongs to the caller
 
+> **✅ FIXED (confirmed 2026-09-15)** — see `supabase/functions/verify-founder-payment/index.ts:69-71`. After retrieving the session and confirming `payment_status === 'paid'` and `metadata?.type === 'founder_circle'`, the function now also requires `session.metadata?.user_id === user.id`, throwing "Session does not belong to this user" otherwise. Confirmed by direct read of current source.
+
 `supabase/functions/verify-founder-payment/index.ts:33-134`
 
 Correctly retrieves the Stripe session and requires `payment_status === 'paid'` (lines 51-56) and `metadata?.type === 'founder_circle'` (lines 59-61) — this is the right pattern, unlike `verify-circle-payment`. But it never checks `session.metadata?.user_id === user.id` before granting the *calling* user founder tier + 5,000 XP (lines 88-119). The Stripe `sessionId` is exposed in the redirect URL set by `create-founder-checkout/index.ts:87` (`/payment-success?session_id={CHECKOUT_SESSION_ID}&type=founder`), so anyone who obtains another user's real, paid session ID (browser history, a shared link/screenshot, referrer leakage to third-party scripts on the success page, server/CDN logs) could call this function themselves and be granted founder status on someone else's payment. Idempotency is handled correctly (`existing.status === 'completed'` short-circuit, lines 64-76), so this can't be used to double-claim, only to misdirect a single claim to the wrong account.
@@ -108,6 +116,8 @@ Correctly retrieves the Stripe session and requires `payment_status === 'paid'` 
 **Severity: moderate** — real gap, but requires a session-ID leak, not just knowledge of a circle/milestone ID.
 
 ### `create-connect-payment` — fully client-controlled amount and payout destination
+
+> **✅ FIXED (confirmed 2026-09-15)** — `supabase/functions/create-connect-payment/` **no longer exists in this repo**. Confirmed via `ls supabase/functions/` (directory absent) and `git show --stat eae5f217` (commit `eae5f217`, 2026-08-23, "fix(krepay): close two critical wallet RLS holes, harden webhook + payouts") shows `supabase/functions/create-connect-payment/index.ts | 160 ----------------`, i.e. the file was deleted outright, matching the precedent set for `create-escrow-payment`. Per that commit's own message: "deleting the source does not by itself undeploy an already-live function" — actual deployment status was not re-confirmed this pass (no Supabase CLI/dashboard access), so treat the *capability* as closed at the source level, with live-deployment status still unconfirmed.
 
 `supabase/functions/create-connect-payment/index.ts:52-134`
 
@@ -118,6 +128,8 @@ Confirmed via repo-wide grep that **no frontend code calls this function** (`gre
 **Severity: major** (as a deployed capability), heavily mitigated by being unreferenced anywhere in `src/`.
 
 ### `create-payment` — fully client-controlled amount/type, no completion handler, dead code
+
+> **✅ FIXED (confirmed 2026-09-15)** — `supabase/functions/create-payment/` **no longer exists in this repo**. Same commit as `create-connect-payment` above (`eae5f217`, 2026-08-23) deleted it outright (`supabase/functions/create-payment/index.ts | 78 --------`). Confirmed via `ls supabase/functions/` and `git show --stat eae5f217`.
 
 `supabase/functions/create-payment/index.ts:27-65`
 
@@ -130,6 +142,8 @@ Confirmed via repo-wide grep that **no frontend code calls this function** (`gre
 ## Minor findings (detail)
 
 ### `stripe-marketplace-webhook` — inconsistent idempotency guards across its four branches
+
+> **✅ FIXED (confirmed 2026-09-15)** — see `supabase/functions/stripe-marketplace-webhook/index.ts:63-78`. The webhook now inserts into `stripe_webhook_events` (`event_id`, `type`, `payload`) immediately after signature verification and before any branch logic runs, returning `{ received: true, idempotent_event: true }` on a `23505` duplicate — the same event-ID-level dedup pattern already used by `guest-wallet-webhook`/`stripe-wallet-webhook`, closing the `payment_links.use_count` double-increment risk this finding described. Confirmed by direct read of current source.
 
 `supabase/functions/stripe-marketplace-webhook/index.ts`
 

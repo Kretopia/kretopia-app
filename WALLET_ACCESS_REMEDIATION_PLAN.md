@@ -115,6 +115,17 @@ session (`REVOKE UPDATE (stripe_account_id, stripe_account_status) ...`,
 for `profiles` specifically — it does not address the table-level-grant
 root cause (§3 of the investigation) if one exists for `profiles`, but
 it is not wrong to have applied, and removing it would not help.
+*(corrected 2026-09-15: `20260823170000_krepay_security_hardening_followup.sql`
+was never actually committed to `supabase/migrations/` in this repo —
+confirmed absent from `git log --all`; it only ever existed as a SQL
+block quoted inline in `KREPAY_CRITICAL_SECURITY_RUNBOOK.md`. This entire
+plan was superseded by a genuinely-committed pair of migrations,
+`20260823223419_43def0af-be27-4a94-892e-2e8b0ad37eef.sql` +
+`20260823223514_222e9e03-bb14-4fa5-b270-d3463f77d476.sql` ("Migration
+A"), which drops the permissive RLS policies outright and was
+independently confirmed closed — see `KREPAY_CRITICAL_SECURITY_RUNBOOK.md`
+and `WALLET_SECURITY_VERIFICATION_REPORT.md`. The steps below are left
+intact for historical record; do not follow them as a live action item.)*
 
 ## Step 4 — post-migration verification (all three tables)
 
