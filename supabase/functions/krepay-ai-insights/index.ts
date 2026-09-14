@@ -11,6 +11,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { GEMINI_FLASH } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -131,7 +132,7 @@ Write the summary now. Be specific with the numbers given. Never invent a number
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: GEMINI_FLASH,
         messages: [
           { role: "system", content: "You summarize a creator's own payment activity for their own dashboard. Plain, factual, no emojis, no hype. Never suggest or imply any action will be taken automatically." },
           { role: "user", content: userPrompt },

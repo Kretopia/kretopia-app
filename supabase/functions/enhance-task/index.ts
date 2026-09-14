@@ -3,6 +3,7 @@
 // Mirrors the elevate-brief / voice-to-task pattern but for a single manually-typed task.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { GEMINI_FLASH } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -80,7 +81,7 @@ Always call the enhance_task tool. Never reply in plain text.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: GEMINI_FLASH,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userMsg },

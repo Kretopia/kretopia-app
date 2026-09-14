@@ -4,6 +4,7 @@
 // One engine, many intents. Output is presentation-quality, send-ready.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { GEMINI_PRO } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -453,7 +454,7 @@ Draft the document now. Use the richest layout that fits each slide.`;
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-2.5-pro",
+      model: GEMINI_PRO,
       messages: [
         { role: "system", content: SYSTEM(intent, theme, style) },
         { role: "user", content: userMsg },
@@ -596,7 +597,7 @@ serve(async (req) => {
         });
       }
       const { data, error } = await admin.from("thrive_documents")
-        .update({ content: doc, title: doc.title, brief: user_brief, theme, model_used: "google/gemini-2.5-pro" })
+        .update({ content: doc, title: doc.title, brief: user_brief, theme, model_used: GEMINI_PRO })
         .eq("id", document_id).eq("user_id", user.id).select().single();
       if (error) throw error;
       saved = data;
@@ -610,7 +611,7 @@ serve(async (req) => {
         content: doc,
         theme,
         status: "draft",
-        model_used: "google/gemini-2.5-pro",
+        model_used: GEMINI_PRO,
         credits_spent: 5,
       }).select().single();
       if (error) throw error;

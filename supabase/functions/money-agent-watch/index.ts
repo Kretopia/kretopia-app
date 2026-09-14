@@ -9,6 +9,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { requireAdminOrCron, adminGuardCorsHeaders } from "../_shared/admin-guard.ts";
+import { GEMINI_FLASH } from "../_shared/aiModels.ts";
 
 const corsHeaders = adminGuardCorsHeaders;
 
@@ -66,7 +67,7 @@ serve(async (req) => {
             method: "POST",
             headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
+              model: GEMINI_FLASH,
               messages: [
                 { role: "system", content: "You write warm, professional invoice chase emails. 3-4 short sentences, no emojis." },
                 { role: "user", content: `Invoice ${inv.invoice_number}, ${inv.currency} ${inv.amount}, due ${inv.due_date} (overdue). Brand: ${inv.brand_name || "client"}. Draft subject + body. Output JSON: {"subject":"...","body":"..."}` },

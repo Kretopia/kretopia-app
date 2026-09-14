@@ -1,6 +1,7 @@
 // Generate an event run sheet from a brief.
 // Returns an array of timeline items the client inserts into event_runsheet_items.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { GEMINI_FLASH } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +22,7 @@ serve(async (req) => {
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: GEMINI_FLASH,
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: `Event: ${event_title}\n${event_description || ""}\nDate: ${event_date || "TBD"}\nDuration: ~${duration_hours || 4}h` },

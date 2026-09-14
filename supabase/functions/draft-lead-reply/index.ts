@@ -1,6 +1,7 @@
 // Phase 14 — Thrive drafts short, on-brand reply options for a Hot Lead.
 // Voice: warm Executive Producer. Never says "AI". Always 3 options.
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { GEMINI_FLASH } from "../_shared/aiModels.ts";
 
 interface ReqBody {
   inbound: string;
@@ -50,7 +51,7 @@ Reply on behalf of ${myName}. First person.`;
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: GEMINI_FLASH,
         messages: [{ role: 'system', content: sys }, { role: 'user', content: user }],
         tools: [{
           type: 'function',

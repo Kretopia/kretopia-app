@@ -9,6 +9,7 @@
 
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { GEMINI_FLASH } from "../_shared/aiModels.ts";
 
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -19,7 +20,7 @@ Voice: short, declarative, action-first. No "I'd be happy to". No emojis.
 Never fluffy. Sound like a seasoned producer who's seen this 100 times.
 Return ONLY the drafted text — no preamble, no sign-off unless asked.`;
 
-async function llm(prompt: string, model = "google/gemini-2.5-flash"): Promise<string> {
+async function llm(prompt: string, model = GEMINI_FLASH): Promise<string> {
   const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {

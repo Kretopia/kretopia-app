@@ -9,6 +9,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { embedText, toPgVector } from "../_shared/embed.ts";
+import { GEMINI_FLASH_LITE } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -100,7 +101,7 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: GEMINI_FLASH_LITE,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: `Recent turns:\n\n${transcript}` },

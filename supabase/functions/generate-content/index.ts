@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
+import { GEMINI_FLASH, GEMINI_FLASH_IMAGE_PREVIEW } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -78,7 +79,7 @@ serve(async (req) => {
 
     // Use different models based on content type
     const isImageGeneration = type === 'image';
-    const model = isImageGeneration ? "google/gemini-2.5-flash-image-preview" : "google/gemini-2.5-flash";
+    const model = isImageGeneration ? GEMINI_FLASH_IMAGE_PREVIEW : GEMINI_FLASH;
     
     const requestBody: any = {
       model: model,

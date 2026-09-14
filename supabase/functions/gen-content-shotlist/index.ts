@@ -1,4 +1,5 @@
 // Generates a shot list from a brief using Lovable AI Gateway (Gemini).
+import { GEMINI_FLASH } from "../_shared/aiModels.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -30,7 +31,7 @@ Aim for 6-12 shots. Be specific and shootable. No extra prose.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: GEMINI_FLASH,
         messages: [
           { role: "system", content: sys },
           { role: "user", content: `Project: ${project_title || "Untitled"}\n\nBrief:\n${brief}` },
