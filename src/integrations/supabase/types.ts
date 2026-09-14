@@ -19136,6 +19136,8 @@ export type Database = {
           badge: Database["public"]["Enums"]["user_badge"] | null
           behance_url: string | null
           bio: string | null
+          calendly_url: string | null
+          comp_card_layout: Json | null
           cover_image_url: string | null
           created_at: string | null
           full_name: string | null
@@ -19146,11 +19148,24 @@ export type Database = {
           linkedin_url: string | null
           location: string | null
           membership_number: string | null
+          model_categories: string[] | null
+          model_stats: Json | null
+          model_unions: string[] | null
+          mother_agency: string | null
           onboarding_completed: boolean | null
           professional_skills: Json | null
+          rate_range: string | null
           role: string | null
+          site_bio: string | null
+          site_custom_blocks: Json | null
+          site_enabled: boolean | null
+          site_headline: string | null
+          site_sections: Json | null
+          site_template: string | null
           soundcloud_url: string | null
           spotify_url: string | null
+          sub_roles: string[] | null
+          subscription_tier: string | null
           tiktok_url: string | null
           twitter_url: string | null
           updated_at: string | null
@@ -19158,6 +19173,7 @@ export type Database = {
           username: string | null
           verification_status: string | null
           verification_tier: string | null
+          website: string | null
           xp: number | null
           youtube_url: string | null
         }
@@ -20451,6 +20467,8 @@ export type Database = {
           badge: Database["public"]["Enums"]["user_badge"]
           behance_url: string
           bio: string
+          calendly_url: string
+          comp_card_layout: Json
           cover_image_url: string
           created_at: string
           full_name: string
@@ -20461,11 +20479,24 @@ export type Database = {
           linkedin_url: string
           location: string
           membership_number: string
+          model_categories: string[]
+          model_stats: Json
+          model_unions: string[]
+          mother_agency: string
           onboarding_completed: boolean
           professional_skills: Json
+          rate_range: string
           role: string
+          site_bio: string
+          site_custom_blocks: Json
+          site_enabled: boolean
+          site_headline: string
+          site_sections: Json
+          site_template: string
           soundcloud_url: string
           spotify_url: string
+          sub_roles: string[]
+          subscription_tier: string
           tiktok_url: string
           twitter_url: string
           updated_at: string
@@ -20473,6 +20504,7 @@ export type Database = {
           username: string
           verification_status: string
           verification_tier: string
+          website: string
           xp: number
           youtube_url: string
         }[]

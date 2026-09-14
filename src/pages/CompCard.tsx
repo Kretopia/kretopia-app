@@ -19,9 +19,15 @@ export default function CompCard() {
   useEffect(() => {
     if (!userId) return;
     (async () => {
+      // public_profiles_safe, not raw profiles: RLS only allows a profile's
+      // owner to read their row directly, so an anonymous casting director
+      // opening this link would otherwise get zero rows back. portfolio_links
+      // is dropped -- it's not a column on profiles (this select previously
+      // 500'd for every visitor, owner included, since a nonexistent column
+      // fails the whole query rather than being silently omitted).
       const { data: p } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url, portfolio_links, mother_agency, model_unions, model_categories, model_stats, comp_card_layout, sub_roles")
+        .from("public_profiles_safe")
+        .select("user_id, full_name, avatar_url, mother_agency, model_unions, model_categories, model_stats, comp_card_layout, sub_roles")
         .eq("user_id", userId)
         .maybeSingle();
 
@@ -34,8 +40,8 @@ export default function CompCard() {
           }
         });
       }
-      // Fill any empty slots with avatar + portfolio_links fallback
-      const fallback = [(p as any)?.avatar_url, ...((p as any)?.portfolio_links || [])].filter(Boolean) as string[];
+      // Fill any empty slots with the avatar as a fallback
+      const fallback = [(p as any)?.avatar_url].filter(Boolean) as string[];
       let fi = 0;
       for (let i = 0; i < 5; i++) {
         if (!imgs[i]) {
