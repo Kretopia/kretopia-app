@@ -1,6 +1,8 @@
 // Platform service fee structure — charged TO THE BRAND/COMPANY on top of talent rate
 // Talent receives 100% of their quoted rate
 // Platform fees reduced 5% across the board (focus group feedback Apr 2026)
+// Mirrored in supabase/functions/_shared/platformFees.ts (the rate actually
+// charged server-side for milestone payments) -- keep both in sync by hand.
 export const PLATFORM_FEES = {
   free: 0.15,             // was 20% — 15% service fee for free brands
   pro: 0.10,              // was 15% — 10% for Creator

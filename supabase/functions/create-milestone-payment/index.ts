@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { resolveStripeSecretKey } from "../_shared/stripeEnv.ts";
+import { getPlatformFeeRate } from "../_shared/platformFees.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,20 +14,7 @@ const logStep = (step: string, details?: any) => {
   console.log(`[MILESTONE-PAYMENT] ${step}${detailsStr}`);
 };
 
-// Platform service fee rates — charged to brand ON TOP of talent rate
-const PLATFORM_FEE_RATES: Record<string, number> = {
-  free: 0.20,
-  pro: 0.15,
-  founder: 0.10,
-  studio: 0.15,
-  enterprise: 0.15,
-};
-
 const MANAGER_COMMISSION_RATE = 0.10; // 10%
-
-const getPlatformFeeRate = (tier: string | null): number => {
-  return PLATFORM_FEE_RATES[tier || 'free'] || PLATFORM_FEE_RATES.free;
-};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
