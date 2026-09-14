@@ -230,7 +230,11 @@ export function StartProjectDialog({
           created_by: user.id,
           status: 'active' as const,
         })
-        .select()
+        // Explicit column, not bare .select() -- a wildcard SELECT after
+        // INSERT needs a grant on every column of the row, including the
+        // permanently-locked margin/client_price fields. Only .id is ever
+        // read below.
+        .select('id')
         .single();
 
       if (projectError) throw projectError;

@@ -541,7 +541,16 @@ export const VoiceFirstCreateModal = ({
           budget: budget.trim() || null,
           setup_completed: false,
         })
-        .select()
+        // Explicit column list, not bare .select() -- a wildcard SELECT
+        // after INSERT needs SELECT-grant on every column of the row,
+        // including client_price/creative_payout/margin_type/margin_value,
+        // which are permanently locked down (security hardening: these are
+        // sensitive margin fields authenticated users are never granted
+        // SELECT on). This code never reads anything but .id, so requesting
+        // the full row was always going to 42501 regardless of how many
+        // times the grants themselves get "fixed" -- confirmed live via
+        // has_table_privilege/has_column_privilege before writing this.
+        .select("id")
         .single();
       if (error) throw error;
 
