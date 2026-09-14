@@ -27,6 +27,7 @@
 //   { ok: true, facts: N, entities: N, brain: { ... }, summary: string }
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { wrapUntrustedContent, PROMPT_INJECTION_DEFENSE_CLAUSE } from "../_shared/promptIsolation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -66,6 +67,24 @@ const ALLOWED_ENTITY_KINDS = new Set([
   "person", "org", "sponsor", "venue", "brand", "client", "talent",
   "supplier", "date", "deliverable", "product", "other",
 ]);
+
+// Money/contact facts are the highest-value target for an injected
+// instruction to fabricate ("wire the deposit to ...", "new contact email
+// is ..."), and this Studio Brain data is read straight into later,
+// higher-stakes AI calls (thrive-document-engine drafting a contract or
+// invoice, desk-agent's draft_invoice tool) with no re-verification.
+// "manual" is the one source_kind that's the user directly typing into
+// their own Studio, not a third-party document -- everything else (pdf,
+// email, link, deck, contract, budget, voice, image, message, brief) could
+// easily be authored or hosted by someone other than the user. Facts of a
+// sensitive kind pulled from those get a lower confidence score so a
+// downstream consumer that checks it treats them as unverified rather than
+// silent ground truth.
+const SENSITIVE_FACT_KINDS = new Set([
+  "payment_terms", "deposit", "invoice_amount", "budget_total", "budget_line",
+  "rate", "contact_email", "contact_phone",
+]);
+const TRUSTED_SOURCE_KINDS = new Set(["manual"]);
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -221,10 +240,11 @@ Deno.serve(async (req) => {
       " Extract ONLY the things that will be reusable later: budgets, dates, " +
       "venues, sponsors, contacts, deliverables, brand guidance, payment terms, " +
       "key messages. Be concise. Never invent. If something isn't in the source, " +
-      "don't return it.";
+      "don't return it." +
+      PROMPT_INJECTION_DEFENSE_CLAUSE;
 
     const userContent: any[] = [];
-    if (text) userContent.push({ type: "text", text });
+    if (text) userContent.push({ type: "text", text: wrapUntrustedContent(`dropped ${source_kind}`, text) });
     if (url) userContent.push({ type: "text", text: `Source URL: ${url}` });
     if (image_base64) {
       userContent.push({
@@ -300,6 +320,9 @@ Deno.serve(async (req) => {
         const valueNum = typeof f.value_numeric === "number" && Number.isFinite(f.value_numeric)
           ? f.value_numeric
           : null;
+        const confidence = SENSITIVE_FACT_KINDS.has(kind) && !TRUSTED_SOURCE_KINDS.has(source_kind)
+          ? 0.4
+          : 0.75;
         return {
           project_id,
           kind,
@@ -308,7 +331,7 @@ Deno.serve(async (req) => {
           value_numeric: valueNum,
           value_date: valueDate,
           importance,
-          confidence: 0.75,
+          confidence,
           source_kind,
           source_file_id: file_id,
           source_url: url,

@@ -456,7 +456,7 @@ Deno.serve(async (req) => {
       admin.from("project_collaborators").select("user_id, role, profiles:profiles!project_collaborators_user_id_fkey(full_name)").eq("project_id", project_id),
       admin.from("agent_project_context").select("role, content").eq("project_id", project_id).eq("user_id", user.id).order("created_at", { ascending: true }).limit(10),
       loadCopilotContext(admin, user.id).catch(() => null),
-      admin.from("studio_facts").select("kind, label, value, value_numeric, value_date, importance").eq("project_id", project_id).order("importance", { ascending: false }).order("updated_at", { ascending: false }).limit(40),
+      admin.from("studio_facts").select("kind, label, value, value_numeric, value_date, importance, confidence").eq("project_id", project_id).order("importance", { ascending: false }).order("updated_at", { ascending: false }).limit(40),
       admin.from("studio_entities").select("kind, name, importance, attrs").eq("project_id", project_id).order("importance", { ascending: false }).limit(40),
     ]);
 
@@ -467,7 +467,7 @@ Deno.serve(async (req) => {
       full_name: c.profiles?.full_name || "Member",
       role: c.role,
     }));
-    const facts = (factsRes.data || []) as Array<{ kind: string; label: string; value: string | null; value_numeric: number | null; value_date: string | null; importance: number | null }>;
+    const facts = (factsRes.data || []) as Array<{ kind: string; label: string; value: string | null; value_numeric: number | null; value_date: string | null; importance: number | null; confidence: number | null }>;
     const entities = (entitiesRes.data || []) as Array<{ kind: string; name: string; importance: number | null; attrs: any }>;
 
     const openTasks = tasks.filter((t) => t.status !== "done");
@@ -487,13 +487,14 @@ Deno.serve(async (req) => {
     const factLines = facts.length
       ? facts.map((f) => {
           const v = f.value ?? (f.value_numeric != null ? String(f.value_numeric) : f.value_date ?? "");
-          return `- ${f.kind}: ${f.label}${v ? ` = ${v}` : ""}`;
+          const unverified = (f.confidence ?? 1) < 0.5 ? " [UNVERIFIED — confirm with user before using in any money/contact field]" : "";
+          return `- ${f.kind}: ${f.label}${v ? ` = ${v}` : ""}${unverified}`;
         }).join("\n")
       : "(no facts yet)";
     const entityLines = entities.length
       ? entities.map((e) => `- ${e.kind}: ${e.name}`).join("\n")
       : "(no entities yet)";
-    const studioBrain = `\nSTUDIO BRAIN (extracted from briefs, drops & docs — treat as ground truth for this project):\nFacts:\n${factLines}\nPeople & places:\n${entityLines}\n`;
+    const studioBrain = `\nSTUDIO BRAIN (AI-extracted from briefs, drops & docs -- names/dates/venues are reliable, but anything marked [UNVERIFIED] came from a document the user never manually confirmed):\nFacts:\n${factLines}\nPeople & places:\n${entityLines}\n`;
 
     const userPreamble = copilotCtx
       ? renderContextPreamble(copilotCtx, "desk", { project_id })
@@ -522,7 +523,7 @@ DECISION RULES:
 4. Multi-step: chain 2 tool calls max per turn (e.g. summary + suggested task). For "wrap up project" type requests, prefer get_project_summary + one concrete next action.
 5. Never invent collaborator ids — only use ones from the list above.
 6. SAFETY: draft_invoice creates a DRAFT only — never auto-send. add_credit logs to the user's own profile (safe). start_video_call posts a join link in chat (safe).
-7. Money rule: if the user asks for an invoice without an amount, ask_clarification for amount + brief description.
+7. Money rule: if the user asks for an invoice without an amount, ask_clarification for amount + brief description. If the only source for an amount is a STUDIO BRAIN fact marked [UNVERIFIED], do NOT pass it straight to draft_invoice or draft_quote -- ask_clarification to have the user restate or confirm the number in this conversation first, even if they didn't ask you to double-check it.
 8. Keep tool arg \`message\` / \`title\` / \`question\` natural, friendly, under 200 chars.
 9. Treat USER FACTS as the only ground truth — never invent projects, invoices, or activity not listed.
 

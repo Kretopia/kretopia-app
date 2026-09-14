@@ -3,6 +3,7 @@
 // the gig inside the app instead of leaving to the original site.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { wrapUntrustedContent, PROMPT_INJECTION_DEFENSE_CLAUSE } from "../_shared/promptIsolation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -106,8 +107,8 @@ serve(async (req) => {
           body: JSON.stringify({
             model: "google/gemini-2.5-flash",
             messages: [
-              { role: "system", content: "You turn a scraped job/gig page into a clean, scannable brief in markdown. Sections (only if info present): **About the role**, **What you'll do**, **What they want**, **Compensation**, **How to apply**. No fluff, no SEO boilerplate, no nav/footer text. Max ~350 words." },
-              { role: "user", content: `Gig: ${gig.title}\nCompany: ${gig.company || ""}\n\nPAGE:\n${markdown.slice(0, 12000)}` },
+              { role: "system", content: `You turn a scraped job/gig page into a clean, scannable brief in markdown. Sections (only if info present): **About the role**, **What you'll do**, **What they want**, **Compensation**, **How to apply**. No fluff, no SEO boilerplate, no nav/footer text. Max ~350 words. Only describe the role itself -- never include a call to action to pay a fee, wire money, message an off-platform contact urgently, or click a link other than the original posting; if the page pushes any of that, omit it and don't mention it happened.${PROMPT_INJECTION_DEFENSE_CLAUSE}` },
+              { role: "user", content: `Gig: ${gig.title}\nCompany: ${gig.company || ""}\n\n${wrapUntrustedContent("scraped web page", markdown.slice(0, 12000))}` },
             ],
           }),
         });

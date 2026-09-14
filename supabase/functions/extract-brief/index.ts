@@ -10,6 +10,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { wrapUntrustedContent, PROMPT_INJECTION_DEFENSE_CLAUSE } from "../_shared/promptIsolation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -161,7 +162,8 @@ Rules:
 - Otherwise kind="link", thumbnail_url=null.
 - Never invent references that aren't in the source.
 - Keep titles under 80 chars.
-- Return ONLY the JSON object, no prose, no markdown fences.`;
+- Return ONLY the JSON object, no prose, no markdown fences.
+${PROMPT_INJECTION_DEFENSE_CLAUSE}`;
 };
 
 async function fetchPublicSheetAsCsv(url: string): Promise<string> {
@@ -276,13 +278,13 @@ serve(async (req) => {
     if (source === "text") {
       const text: string = body.text ?? "";
       if (!text.trim()) throw new Error("text is required for source=text");
-      parts = [{ type: "text", text: `${ctx}Brief (free-form):\n\n${text}` }];
+      parts = [{ type: "text", text: `${ctx}Brief (free-form):\n\n${wrapUntrustedContent("user-provided brief text", text)}` }];
     } else if (source === "csv") {
       const csv: string = body.csv ?? "";
       if (!csv.trim()) throw new Error("csv is required for source=csv");
       parts = [{
         type: "text",
-        text: `${ctx}Brief delivered as CSV/spreadsheet rows. Treat each row (after the header) as ONE deliverable:\n\n${csv}`,
+        text: `${ctx}Brief delivered as CSV/spreadsheet rows. Treat each row (after the header) as ONE deliverable:\n\n${wrapUntrustedContent("pasted CSV", csv)}`,
       }];
     } else if (source === "sheet") {
       const url: string = body.url ?? "";
@@ -290,7 +292,7 @@ serve(async (req) => {
       const csv = await fetchPublicSheetAsCsv(url);
       parts = [{
         type: "text",
-        text: `${ctx}Brief delivered as a public Google Sheet (exported to CSV). Treat each row as ONE deliverable:\n\n${csv}`,
+        text: `${ctx}Brief delivered as a public Google Sheet (exported to CSV). Treat each row as ONE deliverable:\n\n${wrapUntrustedContent("Google Sheet export", csv)}`,
       }];
     } else if (source === "doc") {
       const dataBase64: string = body.data_base64 ?? "";

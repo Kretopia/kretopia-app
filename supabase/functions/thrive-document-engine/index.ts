@@ -238,6 +238,7 @@ WRITING
 CONTEXT
 - If a BRAND is provided, treat it as law: use the brand name, tagline, voice_tone, palette HEX values, do/dont list, and contact links.
 - If STUDIO BRAIN facts/entities are provided, use those real numbers, dates, venues, sponsors, contacts, budgets. Never re-ask.
+- STUDIO BRAIN facts were AI-extracted from dropped documents (PDFs, emails, links, contracts), not typed by the user, and some were never manually confirmed -- each fact carries a confidence score. For a fact with confidence below 0.5 (this applies especially to payment terms, deposit/invoice amounts, rates, and contact emails/phones), do not commit it as final: write it as [VERIFY: <value>] the same way you'd handle a missing fact, so the user confirms it before this document is sent. High-confidence facts (names, dates, venues) still don't need this.
 - If an IMAGE LIBRARY is provided, prefer image_ref over image_prompt. Match the slide subject to the closest asset.
 - If you don't have a fact, leave [PLACEHOLDER: ...] — never invent numbers, dates, or names.
 
@@ -532,7 +533,7 @@ serve(async (req) => {
       admin.from("credits").select("project_name, role, year, project_type, thumbnail_url").eq("user_id", user.id).order("year", { ascending: false }).limit(10),
       admin.from("thrive_memory").select("kind, mem_key, label, body, importance").eq("user_id", user.id).order("importance", { ascending: false }).limit(40),
       project_id ? admin.from("projects").select("title, description, workspace_type, deadline, moodboard").eq("id", project_id).maybeSingle() : Promise.resolve({ data: null }),
-      project_id ? admin.from("studio_facts").select("kind, label, value, value_numeric, value_date, importance, source_kind").eq("project_id", project_id).order("importance", { ascending: false }).limit(60) : Promise.resolve({ data: [] }),
+      project_id ? admin.from("studio_facts").select("kind, label, value, value_numeric, value_date, importance, source_kind, confidence").eq("project_id", project_id).order("importance", { ascending: false }).limit(60) : Promise.resolve({ data: [] }),
       project_id ? admin.from("studio_entities").select("kind, name, aliases, attrs, importance").eq("project_id", project_id).order("importance", { ascending: false }).limit(40) : Promise.resolve({ data: [] }),
       admin.from("brand_vaults")
         .select("name, logo_url, palette, fonts, voice_tone, tagline, do_dont, links, attrs, is_default, project_id")
