@@ -44,9 +44,7 @@ import { InviteCircleCard } from "@/components/InviteCircleCard";
 import { FirstWinSheet } from "@/components/onboarding/FirstWinSheet";
 import { RecentIntentsDrawer } from "@/components/home/RecentIntentsDrawer";
 import { PersonaCardsRow } from "@/components/home/PersonaCardsRow";
-import { TodayHeader } from "@/components/home/TodayHeader";
-import { TodayDashboard } from "@/components/home/TodayDashboard";
-import { TodayWhatsNext } from "@/components/home/TodayWhatsNext";
+import { TodayDashboard } from "@/components/today/TodayDashboard";
 // SpotlightFeedRow removed from Home — lives at /spotlight only.
 // LiveGigsStrip removed — see Smart Gig Scout
 // ThriveFundShowcase replaced by compact ThriveFundTeaserCard on landing
@@ -472,26 +470,22 @@ export const UnifiedHome = () => {
 
 
       {/* ═══════════ AUTH HUB ═══════════
-          Render as soon as we know there's a user — don't wait for the profile fetch.
-          Three components, one job each: TodayHeader (title + Kreto + fast
-          actions), TodayDashboard (highest-priority stuff, first under the
-          fold), TodayWhatsNext (the composer + filterable action blocks).
-          They load their own data and skeletons, so gating the whole hub on
-          `profile` left mobile blank for ~500ms+ on slow nets. */}
+          Render as soon as we know there's a user — don't wait for the
+          profile fetch. TodayDashboard (src/components/today/) is the one
+          composed command-center surface: greeting + Passport readiness +
+          priority action, momentum, then next moves -- it loads its own
+          data and skeleton, so gating the whole hub on `profile` left
+          mobile blank for ~500ms+ on slow nets. */}
       {user && (
-        <>
-          <TodayHeader firstName={firstName} />
-          <StudioFeatureShell>
-            <TodayDashboard />
-            <TodayWhatsNext
-              firstName={firstName}
-              peopleForYou={peopleForYouNode}
-              profile={profile}
-              profileFull={profileFull}
-              myCredits={myCredits}
-            />
-          </StudioFeatureShell>
-        </>
+        <StudioFeatureShell>
+          <TodayDashboard
+            firstName={firstName}
+            peopleForYou={peopleForYouNode}
+            profile={profile}
+            profileFull={profileFull}
+            myCredits={myCredits}
+          />
+        </StudioFeatureShell>
       )}
 
       {/* ═══════════ CONTENT SECTIONS ═══════════
