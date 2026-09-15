@@ -1953,6 +1953,53 @@ function VideoTrackView({
       el.srcObject = null;
     };
   }, [track]);
+
+  // TODO(ios-black-tile): documented, unaddressed iOS Safari/WKWebView bug —
+  // a remote participant's video tile can render as a solid black rectangle
+  // even though `track` is live, `srcObject` is set, and `el.play()`
+  // resolved without error. Reported (by us) most often after: (a) the app
+  // is backgrounded and foregrounded (Capacitor app-switcher on iOS, or
+  // Safari tab-switching), and (b) rejoining a stage after having left it.
+  // Audio keeps working the whole time -- only the <video> paint is wrong --
+  // which matches a real WebKit regression, not a track/connection problem:
+  // https://bugs.webkit.org/show_bug.cgi?id=230922 ("Autoplayed video
+  // element with mediaStream srcObject freezes", iOS 15+) and third-party
+  // reports of the identical "black tile after rejoin" symptom in other
+  // WebRTC SDKs' custom-UI iOS Safari integrations (e.g.
+  // github.com/aws/amazon-chime-sdk-js/issues/957). We could not find a
+  // first-party Daily.co-documented fix for this in their public docs
+  // (checked docs.daily.co/docs/browsers and the daily-js changelogs) --
+  // Daily's own Prebuilt UI shipped a related "video track retains last
+  // frame on iOS Safari" fix in 2023, but this codebase uses daily-js's
+  // custom call-object API with a hand-rolled <video> per tile (this
+  // function), not Prebuilt, so that upstream fix doesn't cover us.
+  //
+  // What's below is a best-effort mitigation, NOT a confirmed fix: force a
+  // full detach/reattach of srcObject when the page regains visibility,
+  // since the WebKit bug above is specifically about a frozen/blank paint
+  // surviving until something forces the video element to re-evaluate its
+  // source. If this stage is still seeing black tiles on iOS after this
+  // ships, the next step is a minimal repro against daily-js directly (no
+  // custom rendering) to determine whether it's this app's tile rendering
+  // or a daily-js/WebKit issue upstream of it, then file/upvote with Daily.
+  useEffect(() => {
+    const handleVisibility = () => {
+      const el = ref.current;
+      if (!el || document.visibilityState !== "visible") return;
+      const current = el.srcObject;
+      el.srcObject = null;
+      // Re-attach on the next frame so WebKit actually treats this as a new
+      // source rather than a no-op re-assignment.
+      requestAnimationFrame(() => {
+        if (!ref.current) return;
+        ref.current.srcObject = current ?? new MediaStream([track]);
+        void ref.current.play().catch(() => undefined);
+      });
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [track]);
+
   return (
     <video
       ref={ref}
