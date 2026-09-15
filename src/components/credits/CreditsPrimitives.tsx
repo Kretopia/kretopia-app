@@ -35,9 +35,17 @@ export function DashboardPanel({
     <motion.section
       id={id}
       aria-labelledby={id ? `${id}-heading` : undefined}
+      // animate, not whileInView: these panels are tab content Radix
+      // toggles via display:none <-> block, not real scroll-into-view.
+      // whileInView's IntersectionObserver doesn't reliably re-fire when
+      // a zero-size (display:none) element suddenly gets real dimensions
+      // at its already-current scroll position -- confirmed live (opacity
+      // stuck at 0, content fully present in the DOM/a11y tree but never
+      // painted) on the Stamps tab specifically. animate responds to
+      // React's own mount/prop lifecycle instead, which tab-switching
+      // always goes through correctly.
       initial={reduced ? false : { opacity: 0, y: 14 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.15 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: reduced ? 0 : 0.45, ease: EASE, delay: reduced ? 0 : Math.min(index * 0.06, 0.24) }}
       className={cn(
         "group/panel relative overflow-hidden rounded-2xl border border-border bg-card p-5 transition-colors duration-300 hover:border-[hsl(var(--accent-passport))]/30 sm:p-6",
