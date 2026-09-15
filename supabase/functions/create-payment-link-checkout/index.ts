@@ -103,7 +103,17 @@ serve(async (req) => {
       throw new Error("This creator hasn't finished setting up payouts yet — please try again later.");
     }
 
-    const session = await stripe.checkout.sessions.create(sessionParams);
+    // Idempotency key from link id + amount + payer email, bucketed to a
+    // 5-minute window. Unlike an invoice or milestone, a payment link has no
+    // "already paid" flag flipped before this call -- it's meant to be
+    // reused (multi-use links, or the same payer coming back later), so a
+    // purely static key would wrongly dedupe two genuinely separate
+    // payments into one Stripe session. The time bucket keeps the key
+    // stable across a double-click/network retry of the *same* attempt
+    // while still letting a later, distinct payment through.
+    const session = await stripe.checkout.sessions.create(sessionParams, {
+      idempotencyKey: `payment-link:${link.id}:${cents}:${payer_email || "anon"}:${Math.floor(Date.now() / 300_000)}`,
+    });
 
     // Log a pending payment row (webhook flips it to paid)
     await admin.from("payment_link_payments").insert({

@@ -267,7 +267,15 @@ serve(async (req) => {
       logStep("Using escrow mode with manual capture");
     }
 
-    const session = await stripe.checkout.sessions.create(sessionConfig);
+    // Idempotency key from milestoneId + payer + total charged: a double-
+    // click or retried request for the exact same milestone payment
+    // collapses onto the same Stripe Checkout Session instead of creating a
+    // second one. The "already paid" guard above means this line can never
+    // be reached again for the same milestone once it succeeds, so no
+    // time-window is needed here either.
+    const session = await stripe.checkout.sessions.create(sessionConfig, {
+      idempotencyKey: `milestone-payment:${milestoneId}:${user.id}:${brandTotalCents}`,
+    });
 
     logStep("Checkout session created", { sessionId: session.id, url: session.url, escrow: useEscrow, brandTotal });
 
