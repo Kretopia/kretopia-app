@@ -52,9 +52,27 @@ type Tool = {
   handler: string;
 };
 
+// Receipt data for this run -- which model(s) were called, how many tokens
+// they burned. Accumulated across classifyIntent + every planTools turn and
+// persisted onto orch_runs at the end (see 20260915100000 migration). This
+// is foundation/audit data only; no caps or pricing are derived from it here.
+interface UsageAccumulator {
+  totalTokens: number;
+  primaryModel: string | null;
+}
+function addUsage(acc: UsageAccumulator, json: any, model: string) {
+  const u = json?.usage;
+  const total = typeof u?.total_tokens === "number"
+    ? u.total_tokens
+    : (Number(u?.prompt_tokens || 0) + Number(u?.completion_tokens || 0));
+  if (total > 0) acc.totalTokens += total;
+  if (!acc.primaryModel) acc.primaryModel = model;
+}
+
 async function classifyIntent(
   intent: string,
   tools: Tool[],
+  usage: UsageAccumulator,
 ): Promise<{ agent_kind: string; reasoning: string }> {
   if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
@@ -118,6 +136,7 @@ async function classifyIntent(
     return { agent_kind: "project_manager", reasoning: "classifier unavailable" };
   }
   const j = await resp.json();
+  addUsage(usage, j, GEMINI_FLASH_LITE);
   try {
     const parsed = JSON.parse(j.choices?.[0]?.message?.content ?? "{}");
     if (kinds.includes(parsed.agent_kind)) return parsed;
@@ -138,6 +157,7 @@ async function planTools(
   context: Record<string, unknown>,
   userId: string,
   authHeader: string,
+  usage: UsageAccumulator,
 ): Promise<Array<{ tool_name: string; tool_args: Record<string, unknown>; preview_title: string; preview_body: string; auto_result?: unknown; already_executed?: boolean }>> {
   if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
@@ -245,6 +265,7 @@ async function planTools(
     }
 
     const data = await resp.json();
+    addUsage(usage, data, "google/gemini-3-flash-preview");
     const msg = data.choices?.[0]?.message;
     const calls = msg?.tool_calls ?? [];
 
@@ -446,7 +467,7 @@ async function executeAction(
   // Cross-agent bundle: spin_up_project executes 3 things atomically server-side
   // (create project → invite collaborator → send kickoff DM).
   if (tool.handler === "inline_bundle" && tool.tool_name === "spin_up_project") {
-    return await executeSpinUpProject(userId, args, authHeader);
+    return await executeSpinUpProject(userId, args, authHeader, actionId);
   }
 
   // Invoke the underlying edge function as the user (so RLS applies correctly)
@@ -458,7 +479,12 @@ async function executeAction(
         "Content-Type": "application/json",
         Authorization: authHeader, // pass through the user's JWT
       },
-      body: JSON.stringify({ ...args, _tool: tool.tool_name, _agent_action_id: actionId }),
+      body: JSON.stringify({
+        ...args,
+        _tool: tool.tool_name,
+        _agent_action_id: actionId,
+        _source: "agent_orchestrator",
+      }),
     });
     const text = await resp.text();
     let parsed: unknown = text;
@@ -487,6 +513,7 @@ async function executeSpinUpProject(
   userId: string,
   args: Record<string, unknown>,
   authHeader: string,
+  actionId: string,
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> {
   try {
     const projectTitle = String(args.project_title ?? "Untitled project").slice(0, 200);
@@ -559,6 +586,12 @@ async function executeSpinUpProject(
           to_user_id: creatorUserId,
           body: kickoff,
           context: `Project kickoff: ${project.title}`,
+          // agent-send-dm now requires proof of a human-approved action
+          // before it will send anything -- see the gate added there and
+          // _shared/agentAuthority.ts. This bundle's own action_id (already
+          // transitioned to 'approved' by the CAS in the approval branch
+          // above, before executeAction ever runs) satisfies it.
+          _agent_action_id: actionId,
         }),
       });
       if (!dmResp.ok) {
@@ -793,6 +826,7 @@ serve(async (req) => {
 
       // Draft messages with one Lovable AI call (cheap, fast)
       let drafts: Array<{ user_id: string; body: string }> = [];
+      const draftBatchUsage = { totalTokens: 0 };
       try {
         if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
         const aiResp = await fetch(
@@ -874,6 +908,7 @@ serve(async (req) => {
         }
         if (!aiResp.ok) throw new Error(`AI gateway ${aiResp.status}`);
         const aiJson = await aiResp.json();
+        draftBatchUsage.totalTokens += Number(aiJson?.usage?.total_tokens || 0);
         const argsStr =
           aiJson.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments ?? "{}";
         const parsed = JSON.parse(argsStr);
@@ -904,6 +939,10 @@ serve(async (req) => {
           intent_classified: "Talent Copilot — draft outreach to shortlist",
           context: { creator_count: targets.length },
           status: "awaiting_approval",
+          tokens_used: draftBatchUsage.totalTokens,
+          model: GEMINI_FLASH_LITE,
+          tool_call_count: targets.length,
+          tool_names: ["send_dm"],
         })
         .select("id")
         .single();
@@ -1159,7 +1198,13 @@ serve(async (req) => {
       .eq("enabled", true);
     if (!tools?.length) throw new Error("Tool registry is empty");
 
-    const { agent_kind, reasoning } = await classifyIntent(intent, tools as Tool[]);
+    // Receipt data (item: work-unit estimates and receipts) -- accumulated
+    // across the classifier + planner AI calls below and persisted onto
+    // orch_runs at the end of this handler. Foundation only: no caps, no
+    // pricing, just capturing what actually happened for future visibility.
+    const usage: UsageAccumulator = { totalTokens: 0, primaryModel: null };
+
+    const { agent_kind, reasoning } = await classifyIntent(intent, tools as Tool[], usage);
 
     const { data: run } = await admin
       .from("orch_runs")
@@ -1175,7 +1220,7 @@ serve(async (req) => {
       .single();
     runId = run?.id;
 
-    const planned = await planTools(intent, agent_kind, tools as Tool[], context, userId, authHeader);
+    const planned = await planTools(intent, agent_kind, tools as Tool[], context, userId, authHeader, usage);
 
     // Insert action rows; auto-execute safe_auto, leave requires_approval as proposed
     const actionRows: Array<Record<string, unknown>> = [];
@@ -1234,6 +1279,11 @@ serve(async (req) => {
         summary: planned.length
           ? `Planned ${planned.length} action(s) in ${agent_kind}.`
           : "No action needed.",
+        // Receipt data -- see 20260915100000 migration + module doc above.
+        tokens_used: usage.totalTokens,
+        model: usage.primaryModel,
+        tool_call_count: planned.length,
+        tool_names: Array.from(new Set(planned.map((p) => p.tool_name))),
       })
       .eq("id", run!.id);
 

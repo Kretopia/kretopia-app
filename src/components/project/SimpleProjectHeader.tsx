@@ -258,14 +258,27 @@ export const SimpleProjectHeader = ({ project, collaborators, onCollaboratorsCha
 
   const handleRemoveCollaborator = async () => {
     if (!collaboratorToRemove) return;
-    
+
     setRemoving(true);
     try {
-      const { error } = await supabase
-        .from('project_collaborators')
-        .delete()
-        .eq('project_id', project.id)
-        .eq('user_id', collaboratorToRemove.id);
+      // Routed through copilot-collaborator-tools (instead of deleting the
+      // row directly from the client) so this goes through the same
+      // ownership check + audit trail as the AI-agent paths that perform
+      // the same action -- see supabase/functions/_shared/agentAuthority.ts.
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        "copilot-collaborator-tools",
+        {
+          body: {
+            _tool: "remove_collaborator",
+            _source: "human_ui",
+            project_id: project.id,
+            user_id_to_remove: collaboratorToRemove.id,
+          },
+        },
+      );
+      const error = invokeError || (data as any)?.error
+        ? new Error((data as any)?.error || invokeError?.message || "Failed to remove collaborator")
+        : null;
 
       if (error) throw error;
 
