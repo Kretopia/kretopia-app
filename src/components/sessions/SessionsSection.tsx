@@ -81,7 +81,12 @@ export const SessionsSection = ({ userLocation }: SessionsSectionProps) => {
           .from('jam_participants')
           .select('jam_id')
           .in('jam_id', sessionIds)
-          .in('status', ['going', 'interested', 'rsvp']);
+          // 'rsvp' was a dead literal here: the ticket-purchase edge
+          // functions wrote it, but jam_participants_status_check never
+          // allowed it, so it never actually landed in the table (see
+          // 20260915100000_close_event_ticket_capacity_race_and_status_drift.sql).
+          // Both purchase paths now write 'going', already covered below.
+          .in('status', ['going', 'interested']);
 
         const countMap: Record<string, number> = {};
         counts?.forEach(c => {
@@ -109,7 +114,7 @@ export const SessionsSection = ({ userLocation }: SessionsSectionProps) => {
         .from('jam_participants')
         .select('jam_id')
         .in('jam_id', mySessionIds)
-        .in('status', ['going', 'interested', 'rsvp']);
+        .in('status', ['going', 'interested']);
 
       const myCountMap: Record<string, number> = {};
       myCounts?.forEach(c => {

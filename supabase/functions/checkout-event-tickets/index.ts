@@ -65,6 +65,13 @@ serve(async (req) => {
       throw new Error("Sales have ended for this tier");
     if (quantity < tier.min_per_order) throw new Error(`Min ${tier.min_per_order} per order`);
     if (quantity > tier.max_per_order) throw new Error(`Max ${tier.max_per_order} per order`);
+    // Fast, friendly pre-check only -- deliberately a plain read, not the
+    // atomic enforcement point. For a paid tier the real "sale" doesn't
+    // happen until Stripe confirms payment (verify-event-ticket), which can
+    // be minutes later than this request; holding a DB row lock across that
+    // gap (and across the Stripe API call below) isn't something this fix
+    // does. The free-ticket branch below re-checks capacity atomically
+    // right before granting access, since that grant *is* instantaneous.
     if (tier.quantity_total != null && tier.quantity_sold + quantity > tier.quantity_total)
       throw new Error("Not enough tickets remaining");
 
@@ -150,19 +157,37 @@ serve(async (req) => {
 
     const origin = req.headers.get("origin") || "https://www.thrivein.io";
 
-    // Free tickets: no Stripe needed, mark paid immediately
+    // Free tickets: no Stripe needed, mark paid immediately.
     if (totalCents === 0) {
+      // Atomic check-and-increment: locks the tier row, re-checks capacity,
+      // and writes quantity_sold in a single statement -- closes the TOCTOU
+      // race between the plain-read capacity check above and this grant
+      // (two concurrent free-ticket claims could otherwise both read the
+      // same quantity_sold and both pass). See reserve_event_ticket_capacity()
+      // in 20260915100000_close_event_ticket_capacity_race_and_status_drift.sql.
+      const { data: reservation, error: reserveErr } = await admin
+        .rpc("reserve_event_ticket_capacity", { _tier_id: tierId, _quantity: quantity })
+        .single();
+      if (reserveErr) throw new Error(reserveErr.message);
+      if (!reservation?.allowed) {
+        await admin.from("event_orders").update({ status: "cancelled" }).eq("id", order.id);
+        throw new Error("Not enough tickets remaining");
+      }
+
       await admin.from("event_orders").update({ status: "paid" }).eq("id", order.id);
-      await admin.from("event_ticket_tiers")
-        .update({ quantity_sold: tier.quantity_sold + quantity })
-        .eq("id", tierId);
       if (promoId) {
         await admin.rpc("increment_promo_use", { _id: promoId }).catch(() => {});
       }
+      // 'going' matches jam_participants_status_check and every other RSVP
+      // code path (rsvp_to_event, EventPage.tsx, SessionCard.tsx, ...) --
+      // this used to write 'rsvp', a value the constraint has never
+      // allowed, so the upsert was silently failing (error not checked) on
+      // every free ticket claim and the buyer never actually joined the
+      // guest list.
       await admin.from("jam_participants").upsert({
         jam_id: eventId,
         user_id: user.id,
-        status: "rsvp",
+        status: "going",
       }, { onConflict: "jam_id,user_id" });
 
       return new Response(
