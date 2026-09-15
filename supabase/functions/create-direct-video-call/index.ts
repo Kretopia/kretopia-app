@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { roomSessionExpiry } from "../_shared/roomSessionLimits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,7 +54,9 @@ serve(async (req) => {
         : null;
 
     const roomName = `dm-${crypto.randomUUID().replace(/-/g, "").slice(0, 30)}`;
-    const exp = Math.floor(Date.now() / 1000) + 2 * 60 * 60; // 2h
+    // Was previously 2h here — unified on the shared ceiling. See
+    // _shared/roomSessionLimits.ts for the full previously-inconsistent list.
+    const exp = roomSessionExpiry();
 
     const createRes = await fetch(`${DAILY_API}/rooms`, {
       method: "POST",

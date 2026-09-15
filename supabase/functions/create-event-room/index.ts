@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { roomSessionExpiry } from "../_shared/roomSessionLimits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -143,7 +144,11 @@ serve(async (req) => {
     // Daily room name (max 41 chars, lowercase + dash). Test mode uses a separate room.
     const baseId = event_id.replace(/-/g, "").slice(0, 28).toLowerCase();
     const roomName = isTestMode ? `evt-${baseId}` : `ev-${baseId}`;
-    const exp = Math.floor(Date.now() / 1000) + (isTestMode ? 60 * 60 : 6 * 60 * 60); // test = 1h
+    // Test mode keeps its own short 1h soundcheck expiry; production mode
+    // previously used 6h here (out of step with the rest of the room
+    // creators) and now uses the shared ceiling instead. See
+    // _shared/roomSessionLimits.ts for the full previously-inconsistent list.
+    const exp = isTestMode ? Math.floor(Date.now() / 1000) + 60 * 60 : roomSessionExpiry();
 
     // Stage / watch party: audience joins muted + cam off, hosts can promote.
     // Group room / podcast: everyone joins normally.

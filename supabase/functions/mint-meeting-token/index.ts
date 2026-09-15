@@ -2,6 +2,7 @@
 // or for a guest holding the meeting's share_token (public path).
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { roomSessionExpiry } from "../_shared/roomSessionLimits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -93,7 +94,7 @@ serve(async (req) => {
       participantRole = "guest";
     }
 
-    const exp = Math.floor(Date.now() / 1000) + 4 * 60 * 60;
+    const exp = roomSessionExpiry(); // shared ceiling — see _shared/roomSessionLimits.ts
     const tokenRes = await fetch(`${DAILY_API}/meeting-tokens`, {
       method: "POST",
       headers: { Authorization: `Bearer ${DAILY_API_KEY}`, "Content-Type": "application/json" },

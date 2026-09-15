@@ -2,6 +2,7 @@
 // Idempotent: stores group_room_url on speed_sessions.
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { roomSessionExpiry } from "../_shared/roomSessionLimits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -95,7 +96,7 @@ serve(async (req) => {
           user_name,
           user_id: userId,
           is_owner: isHost,
-          exp: Math.floor(Date.now() / 1000) + 4 * 60 * 60,
+          exp: roomSessionExpiry(), // shared ceiling — see _shared/roomSessionLimits.ts
         },
       }),
     });

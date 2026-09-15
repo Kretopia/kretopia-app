@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { roomSessionExpiry } from "../_shared/roomSessionLimits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -76,7 +77,9 @@ serve(async (req) => {
     let roomName = stage.room_name;
     if (!roomName) {
       if (!isHost) throw new Error("Only host can start the stage");
-      const exp = Math.floor(Date.now() / 1000) + 6 * 60 * 60;
+      // Was previously 6h here — unified on the shared ceiling. See
+      // _shared/roomSessionLimits.ts for the full previously-inconsistent list.
+      const exp = roomSessionExpiry();
       roomName = `cs-${crypto.randomUUID().replace(/-/g, "").slice(0, 28)}`;
       const createRes = await fetch(`${DAILY_API}/rooms`, {
         method: "POST",
@@ -118,7 +121,7 @@ serve(async (req) => {
           user_name: String(user_name || "Guest").slice(0, 60),
           user_id: user.id,
           is_owner: isHost,
-          exp: Math.floor(Date.now() / 1000) + 4 * 60 * 60,
+          exp: roomSessionExpiry(), // shared ceiling — see _shared/roomSessionLimits.ts
           start_video_off: !isHost,
           start_audio_off: !isHost,
         },
