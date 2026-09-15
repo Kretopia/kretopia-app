@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,6 +27,9 @@ serve(async (req) => {
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) throw new Error('Unauthorized');
+
+    const rateLimit = await checkAiFeatureRateLimit(supabase, user.id, "ai-talent-match");
+    if (!rateLimit.allowed) return rateLimit.response;
 
     const { opportunity_id, role_filter, skills_filter, brief_text, limit = 10 } = await req.json();
 

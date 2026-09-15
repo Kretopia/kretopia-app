@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { GEMINI_FLASH } from "../_shared/aiModels.ts";
+import { wrapUntrustedContent, PROMPT_INJECTION_DEFENSE_CLAUSE } from "../_shared/promptIsolation.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -130,7 +131,7 @@ Deno.serve(async (req) => {
 
     // Use AI to extract structured profile data
     const extracted = await aiExtract(
-      `Person: ${full_name || 'Unknown'}\nURL provided: ${url || 'None'}\nCurrent role hint: ${current_role || 'None'}\n\nWeb data:\n${webContext}`,
+      `Person: ${full_name || 'Unknown'}\nURL provided: ${url || 'None'}\nCurrent role hint: ${current_role || 'None'}\n\n${wrapUntrustedContent('web data', webContext)}`,
       `You are a profile data extractor for a creative professional platform.
 
 From the web data, extract ONLY information that is EXPLICITLY stated in the provided text.
@@ -151,7 +152,7 @@ CRITICAL RULES:
 - Do NOT fabricate, guess, or infer information
 - Do NOT make up bios for people you can't find data about
 - If you're unsure about ANY field, set it to null
-- Return raw JSON only, no markdown fences`,
+- Return raw JSON only, no markdown fences${PROMPT_INJECTION_DEFENSE_CLAUSE}`,
       lovableKey
     );
 

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { GEMINI_FLASH } from "../_shared/aiModels.ts";
+import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,6 +28,14 @@ serve(async (req) => {
     if (authHeader) {
       const { data } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
       callerUserId = data.user?.id ?? null;
+    }
+
+    // Only gate signed-in callers -- this endpoint intentionally still
+    // serves anonymous/expired-token requests (see comment above), so an
+    // unauthenticated caller has no per-user identity to key a limit on.
+    if (callerUserId) {
+      const rateLimit = await checkAiFeatureRateLimit(supabase, callerUserId, "discover-creators");
+      if (!rateLimit.allowed) return rateLimit.response;
     }
 
     const { query } = await req.json();

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { GEMINI_FLASH } from "../_shared/aiModels.ts";
+import { wrapUntrustedContent, PROMPT_INJECTION_DEFENSE_CLAUSE } from "../_shared/promptIsolation.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -229,7 +230,7 @@ Deno.serve(async (req) => {
             .join('\n---\n');
 
           const extracted = await aiExtract(
-            `Creator name: ${profile.full_name}\nRole: ${profile.role || profile.job_title || 'Creative'}\n\nWeb results:\n${snippets}`,
+            `Creator name: ${profile.full_name}\nRole: ${profile.role || profile.job_title || 'Creative'}\n\n${wrapUntrustedContent('web search results', snippets)}`,
             `You extract award/recognition information from web search results for a specific creator.
 Return ONLY a JSON array of awards. Each award must have: "title" (award name), "organization" (granting body), "year" (number or null), "category" (e.g., "Film", "Music", "Design", null).
 Rules:
@@ -238,7 +239,7 @@ Rules:
 - Only include awards specifically given TO this person (not just mentioned alongside them)
 - Do NOT fabricate or infer awards. If uncertain, skip.
 - Return [] if no real awards found.
-- Return raw JSON array only, no markdown.`,
+- Return raw JSON array only, no markdown.${PROMPT_INJECTION_DEFENSE_CLAUSE}`,
             lovableKey
           );
 
@@ -374,7 +375,7 @@ Return ONLY the bio text, no quotes or labels.`,
       if (allCreditSnippets.length > 50) {
         try {
           const creditsRaw = await aiExtract(
-            `Creator: ${profile.full_name}\nRole: ${profile.role || profile.job_title || 'Creative'}\n\nWeb data:\n${allCreditSnippets.slice(0, 8000)}`,
+            `Creator: ${profile.full_name}\nRole: ${profile.role || profile.job_title || 'Creative'}\n\n${wrapUntrustedContent('scraped web data', allCreditSnippets.slice(0, 8000))}`,
             `You extract professional credits/work history from web data for a creative professional.
 Return a JSON array of credits. Each credit:
 - "project_name": Name of the project/film/song/album/show/campaign (string, required)
@@ -390,7 +391,7 @@ CRITICAL RULES:
 - Do NOT fabricate, guess, or infer credits not present in the data
 - If a credit seems plausible but isn't clearly stated, DO NOT include it
 - Max 20 credits
-- Return raw JSON array, no markdown`,
+- Return raw JSON array, no markdown${PROMPT_INJECTION_DEFENSE_CLAUSE}`,
             lovableKey
           );
 

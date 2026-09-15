@@ -12,6 +12,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { GEMINI_FLASH } from "../_shared/aiModels.ts";
+import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,6 +41,9 @@ serve(async (req) => {
     const userId = claimsData.claims.sub as string;
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    const rateLimit = await checkAiFeatureRateLimit(admin, userId, "krepay-ai-insights");
+    if (!rateLimit.allowed) return rateLimit.response;
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();

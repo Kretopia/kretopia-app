@@ -2,6 +2,7 @@
 // Returns: { suggestions: [{ name, color, project_ids[], reason }] }
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,6 +28,9 @@ serve(async (req) => {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const rateLimit = await checkAiFeatureRateLimit(supabase, user.id, "suggest-studio-folders");
+    if (!rateLimit.allowed) return rateLimit.response;
 
     // Pull projects owned by the user that aren't already filed
     const { data: projects } = await supabase

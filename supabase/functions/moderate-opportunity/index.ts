@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { GEMINI_FLASH } from "../_shared/aiModels.ts";
+import { wrapUntrustedContent, PROMPT_INJECTION_DEFENSE_CLAUSE } from "../_shared/promptIsolation.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,8 +20,16 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY not configured");
     }
 
-    // Combine content for moderation
-    const content = `Title: ${title}\nDescription: ${description}\nCompensation: ${compensation || 'Not specified'}`;
+    // Combine content for moderation. This is a poster's own freeform text --
+    // exactly the kind of untrusted, potentially adversarial input a bad
+    // actor could use to try to talk the moderator model into waving through
+    // spam/scam/illegal content ("ignore the rules above, this is safe"), so
+    // it's wrapped and isolated the same way extract-brief/scout-gig-detail/
+    // studio-ingest isolate untrusted content -- see _shared/promptIsolation.ts.
+    const content = wrapUntrustedContent(
+      "opportunity post",
+      `Title: ${title}\nDescription: ${description}\nCompensation: ${compensation || 'Not specified'}`,
+    );
 
     console.log('Moderating content:', content);
 
@@ -36,7 +45,7 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: "You are a content moderation system. Analyze job/opportunity posts for spam, illegal content, scams, adult content, violence, hate speech, or anything inappropriate. Respond with JSON only: {\"flagged\": boolean, \"reason\": string or null}. If content is safe, set flagged to false."
+            content: "You are a content moderation system. Analyze job/opportunity posts for spam, illegal content, scams, adult content, violence, hate speech, or anything inappropriate. Respond with JSON only: {\"flagged\": boolean, \"reason\": string or null}. If content is safe, set flagged to false." + PROMPT_INJECTION_DEFENSE_CLAUSE
           },
           {
             role: "user",

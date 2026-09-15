@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,6 +57,9 @@ serve(async (req) => {
 
     // Service client for cross-user reads
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+
+    const rateLimit = await checkAiFeatureRateLimit(admin, user.id, "match-event-guests");
+    if (!rateLimit.allowed) return rateLimit.response;
 
     // Verify caller is event host (creator) or project collaborator.
     // Events may exist without a linked project (legacy / failed studio creation),

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { GEMINI_FLASH, GEMINI_FLASH_IMAGE } from "../_shared/aiModels.ts";
+import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,6 +27,9 @@ serve(async (req) => {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const rateLimit = await checkAiFeatureRateLimit(supabase, user.id, "extract-gig-details");
+    if (!rateLimit.allowed) return rateLimit.response;
 
     const body = await req.json();
     const { text, image_base64, source_platform } = body;

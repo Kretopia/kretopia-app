@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { GEMINI_FLASH, GEMINI_FLASH_IMAGE } from "../_shared/aiModels.ts";
+import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,6 +30,9 @@ serve(async (req) => {
     const token = authHeader?.replace("Bearer ", "");
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) return json({ error: "Unauthorized" }, 401);
+
+    const rateLimit = await checkAiFeatureRateLimit(supabase, user.id, "extract-event-details");
+    if (!rateLimit.allowed) return rateLimit.response;
 
     const body = await req.json().catch(() => ({}));
     const { text, image_base64, image_mime_type, source_platform, source_url, extract_only } = body as {
