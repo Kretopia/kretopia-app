@@ -1,5 +1,6 @@
 // Generates a tight set of podcast interview questions for a guest/episode.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { GEMINI_FLASH } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,7 +33,7 @@ Generate 8 interview questions: 1 warm opener, 5 substantive (story, craft, turn
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: GEMINI_FLASH,
         messages: [
           { role: "system", content: "You are a senior podcast producer. Craft sharp, specific, conversational interview questions. No filler." },
           { role: "user", content: userPrompt },

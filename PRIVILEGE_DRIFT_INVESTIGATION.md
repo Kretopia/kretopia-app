@@ -30,6 +30,21 @@ Every migration touching any of the three tables, found by
 
 No other migration in this repo touches `GRANT`/`REVOKE`/`ALTER TABLE ... OWNER` for any of these three tables. Confirmed via `grep -rn "ON public\.wallets\b\|ON public\.creator_wallets\b\|ON public\.profiles\b" supabase/migrations/*.sql` returning exactly the rows above plus RLS `CREATE POLICY` statements.
 
+**(corrected 2026-09-15)**: the two files cited in the last two rows above
+were never actually committed to `supabase/migrations/` in this repo —
+confirmed absent from `git log --all`. The line numbers cited trace to
+SQL blocks quoted inline in `KREPAY_CRITICAL_SECURITY_RUNBOOK.md`, not to
+files in the migrations directory, which is consistent with this
+document's own §6 finding that no broad re-grant exists anywhere in
+tracked migration history. The privilege-drift problem this investigation
+diagnosed was subsequently closed by a different, genuinely-committed
+pair — `supabase/migrations/20260823223419_43def0af-be27-4a94-892e-2e8b0ad37eef.sql`
++ `20260823223514_222e9e03-bb14-4fa5-b270-d3463f77d476.sql` ("Migration
+A") — which drops the permissive RLS policies outright rather than
+attempting a column-level `REVOKE` against a coexisting table-level
+grant, and was independently confirmed closed (see
+`KREPAY_CRITICAL_SECURITY_RUNBOOK.md`'s final status).
+
 ---
 
 ## 2. What was actually revoked, by category

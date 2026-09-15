@@ -6,6 +6,7 @@
 // No DB writes. Pure routing decision. Studio Brain is already injected by
 // the destination engine (thrive-document-engine), so we don't re-fetch it.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { GEMINI_FLASH_LITE } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -64,7 +65,7 @@ serve(async (req) => {
         signal: ac.signal,
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-lite",
+          model: GEMINI_FLASH_LITE,
           messages: [
             { role: "system", content: SYSTEM },
             { role: "user", content: `Studio: "${(project_title || "Untitled").slice(0, 80)}"\n\nUser said: ${prompt.trim().slice(0, 600)}` },

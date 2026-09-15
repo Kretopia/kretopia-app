@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireAdminOrCron } from "../_shared/admin-guard.ts";
+import { GEMINI_FLASH } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -44,7 +45,7 @@ async function generateBioWithAI(profile: UnclaimedProfile): Promise<string> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: GEMINI_FLASH,
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 200,
         temperature: 0.7,

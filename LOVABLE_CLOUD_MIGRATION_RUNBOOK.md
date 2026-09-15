@@ -1,5 +1,20 @@
 # Lovable Cloud Migration Runbook
 
+**(corrected 2026-09-15)**: `20260823160000_krepay_security_hardening.sql`
+and `20260823170000_krepay_security_hardening_followup.sql`, named
+throughout this runbook, were never actually committed to this repo as
+files under `supabase/migrations/` — confirmed absent from `git log
+--all`. They only ever existed as SQL blocks quoted inline in
+`KREPAY_CRITICAL_SECURITY_RUNBOOK.md`. The wallet/creator_wallets/profiles
+privilege-drift problem this runbook was written to help apply/verify was
+subsequently closed by a different, genuinely-committed pair of
+migrations — `supabase/migrations/20260823223419_43def0af-be27-4a94-892e-2e8b0ad37eef.sql`
++ `20260823223514_222e9e03-bb14-4fa5-b270-d3463f77d476.sql` ("Migration
+A") — which was applied and independently confirmed closed (see
+`KREPAY_CRITICAL_SECURITY_RUNBOOK.md`'s final status and
+`WALLET_SECURITY_VERIFICATION_REPORT.md`). The procedure below is left
+intact for historical record; do not follow it as a live action item.
+
 Prepared while access is `BLOCKED_LOVABLE_CLOUD_ACCESS` (see
 `LOVABLE_CLOUD_ACCESS_REPORT.md`). This is the procedure to follow once
 either the MCP connector or a correctly-scoped local CLI link is

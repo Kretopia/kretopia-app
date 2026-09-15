@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { GEMINI_FLASH } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -503,7 +504,7 @@ Return up to 8 most relevant REAL results.`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: GEMINI_FLASH,
         messages: [
           { role: 'system', content: `${systemPrompt}\n\nRespond with a JSON object: { "results": [...] }` },
           { role: 'user', content: searchPrompt },

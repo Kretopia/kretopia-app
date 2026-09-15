@@ -100,8 +100,10 @@ export default function Subscription() {
         return;
       }
 
-      // The edge function resolves the actual Stripe Price ID itself (mode-aware,
-      // test vs live) — it no longer trusts a raw Price ID from the client.
+      // The server resolves the actual (test- or live-mode) Stripe Price ID
+      // from `tier` + `interval` — it never trusts a client-supplied Price
+      // ID, since the frontend has no visibility into which Stripe mode the
+      // backend is running in (see supabase/functions/_shared/subscriptionPrices.ts).
       const { data, error } = await supabase.functions.invoke("create-checkout", {
         body: { tier, interval: billingInterval },
       });

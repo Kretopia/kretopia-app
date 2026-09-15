@@ -6,6 +6,7 @@
 // Runs on a daily cron and is also callable manually.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { requireAdminOrCron } from "../_shared/admin-guard.ts";
+import { GEMINI_FLASH_LITE } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -65,7 +66,7 @@ Description: ${g.description.slice(0, 1500)}`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: GEMINI_FLASH_LITE,
         messages: [
           { role: "system", content: "You are a strict content moderator. Output JSON only." },
           { role: "user", content: prompt },

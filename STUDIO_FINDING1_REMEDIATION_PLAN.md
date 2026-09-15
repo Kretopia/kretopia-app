@@ -1,6 +1,58 @@
 # Studio Finding 1 Remediation Plan
 
-**Status: `BLOCKED_MIGRATION_NOT_APPLIED`**
+**Status: `BLOCKED_MIGRATION_NOT_APPLIED`** *(stale — see "STATUS UPDATE
+(2026-09-15)" below; the migration has in fact been applied and the plan
+below is kept for historical record.)*
+
+## STATUS UPDATE (2026-09-15)
+
+The status line above and the "Final status" section at the bottom of
+this document are **stale**. Cross-checked against the migration files'
+own comments, not assumed:
+
+- `supabase/migrations/20260825100000_studio_role_based_money_rls.sql`
+  (this plan's migration, §3 below) **has in fact been applied to
+  production** — its own text describes itself as "PREPARED, NOT
+  APPLIED," but that claim is contradicted by the two later migrations
+  below, whose comments record direct, live evidence that it was already
+  live in production before they ran.
+- `supabase/migrations/20260910130000_fix_studio_money_rls_table_level_revoke.sql`
+  records a real negative-test finding from **2026-09-10**: with
+  `20260825100000` already applied, a direct REST `SELECT` of
+  `milestones.amount`/`paid_to`/`paid_at`/`escrow_status`/
+  `payment_intent_id` with an ordinary authenticated session **still
+  succeeded and returned real values** — the column-level `REVOKE` in
+  `20260825100000` had no practical effect on `milestones` because a
+  pre-existing table-level `SELECT` grant was never removed (the
+  equivalent check on `projects`' financial columns correctly returned
+  403/42501 — that table was not leaking). This migration fixed the gap
+  by revoking `SELECT` on `public.milestones` at the **table** level and
+  re-granting only the non-financial columns.
+- `supabase/migrations/20260913110000_milestones_select_grant_dynamic_exclusion.sql`
+  hardened this further on **2026-09-13**: it converted the `milestones`
+  re-grant from `20260910130000`'s hardcoded column allowlist to the same
+  dynamic-exclusion-list pattern (`information_schema.columns` at
+  migration time) already used for `projects`/`invoices`/`profiles`, so a
+  future `ADD COLUMN` on `milestones` no longer needs someone to remember
+  to update this file to avoid silently breaking reads for that new
+  column.
+
+**Net effect**: Finding 1's core fix (role-based money visibility on
+`milestones`/`projects`) is applied and live. It was exploited in a
+narrow, specific way — `milestones`' financial columns were readable via
+direct REST `SELECT` between this migration's original apply and the
+2026-09-10 fix — and has since been patched twice (2026-09-10 and
+2026-09-13, both cited above). The negative tests in §6 below still
+have not been confirmed run against the current, twice-hardened state;
+until they are, treat "applied" as confirmed but "fully verified against
+every scenario in §6" as still open.
+
+The rest of this document, including the `BLOCKED_MIGRATION_NOT_APPLIED`
+status line and "Final status" section below, is left intact as the
+historical record of the plan as originally written — it does not
+reflect the current state except where this section overrides it.
+
+---
 
 Remediation plan for `STUDIO_CURRENT_STATE_AUDIT.md` §7 finding 1
 ("No role-based RLS exists anywhere in Studio") and its direct
@@ -330,6 +382,9 @@ most of them didn't need it.
   plans.
 
 ## Final status
+
+*(See "STATUS UPDATE (2026-09-15)" near the top of this document — this
+section is stale and kept for historical record only.)*
 
 `BLOCKED_MIGRATION_NOT_APPLIED`. Nothing in §3–§4 has been applied or
 deployed. §7's frontend checklist is now fully reviewed and implemented

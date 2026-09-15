@@ -5,6 +5,7 @@
 // Output: { profession: ProfessionKey, confidence: number, reasoning: string }
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { GEMINI_FLASH_LITE } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -82,7 +83,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: GEMINI_FLASH_LITE,
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: `Profile:\n${JSON.stringify(snapshot, null, 2)}` },

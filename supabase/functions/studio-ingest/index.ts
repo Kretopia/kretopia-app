@@ -28,6 +28,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { wrapUntrustedContent, PROMPT_INJECTION_DEFENSE_CLAUSE } from "../_shared/promptIsolation.ts";
+import { GEMINI_FLASH, GEMINI_PRO } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -266,7 +267,7 @@ Deno.serve(async (req) => {
     }
 
     // Vision/audio needs Pro for reliable extraction; text-only stays on flash for speed/cost
-    const model = (hasVision || hasAudio) ? "google/gemini-2.5-pro" : "google/gemini-2.5-flash";
+    const model = (hasVision || hasAudio) ? GEMINI_PRO : GEMINI_FLASH;
 
 
     const aiResp = await fetch(

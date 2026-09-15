@@ -3,9 +3,9 @@ import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { resolveStripeSecretKey } from "../_shared/stripeEnv.ts";
 import {
-  isSubscriptionInterval,
-  isSubscriptionPlanKey,
+  isKnownSubscriptionTier,
   resolveSubscriptionPriceId,
+  type PriceInterval,
 } from "../_shared/subscriptionPrices.ts";
 
 const corsHeaders = {
@@ -31,15 +31,15 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
 
     const { tier, interval } = await req.json();
-    if (!isSubscriptionPlanKey(tier)) throw new Error("A valid subscription tier is required");
-    if (!isSubscriptionInterval(interval)) throw new Error("A valid billing interval is required");
-
-    // Resolved server-side (not trusted from the client) so the Price ID
-    // always matches the active STRIPE_MODE — see _shared/subscriptionPrices.ts.
-    const priceId = resolveSubscriptionPriceId(tier, interval);
+    if (!tier || !isKnownSubscriptionTier(tier)) throw new Error("Unknown or missing subscription tier");
+    const normalizedInterval: PriceInterval = interval === "yearly" ? "yearly" : "monthly";
+    // Resolved server-side (test vs. live) from STRIPE_MODE — never trust a
+    // client-supplied Price ID, since the frontend has no visibility into
+    // which Stripe mode the backend is running in.
+    const priceId = resolveSubscriptionPriceId(tier, normalizedInterval);
 
     const stripe = new Stripe(resolveStripeSecretKey(), {
-      apiVersion: "2025-08-27.basil"
+      apiVersion: "2025-08-27.basil" 
     });
     
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });

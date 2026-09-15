@@ -15,6 +15,15 @@ anything in it is still the live state.
 1. Two CRITICAL vulnerabilities identified via static code audit
    (`KREPAY_PAYMENT_AUDIT.md`), migration written
    (`20260823160000_krepay_security_hardening.sql`).
+   *(corrected 2026-09-15: this filename, and `20260823170000_...sql`
+   referenced in step 3 below, were never actually committed to
+   `supabase/migrations/` in this repo — confirmed absent from `git log
+   --all`. They existed only as SQL blocks quoted inline in
+   `KREPAY_CRITICAL_SECURITY_RUNBOOK.md`. This timeline's steps 1-6 are
+   accurate as a historical record of what was attempted, but the fix
+   that actually landed and is confirmed live today is the different,
+   genuinely-committed "Migration A" pair described in the "Update
+   2026-08-24" section further down this document.)*
 2. Migration reported applied. First verification: 5 of 6 target columns
    correctly locked; `creator_wallets.stripe_account_id` still open.
 3. Investigating that gap surfaced a related, more severe finding:
@@ -116,7 +125,13 @@ and three sibling tables (`creator_wallet_balances`, `creator_payouts`,
 query rather than the partial, deferred list this session's own
 remediation plan had left incomplete. Full account in
 `PRIVILEGE_DRIFT_INVESTIGATION.md` and the merge commits on
-`feature/activation-priority-plan`.
+`feature/activation-priority-plan`. **(identified 2026-09-15)**: this is
+`supabase/migrations/20260823223419_43def0af-be27-4a94-892e-2e8b0ad37eef.sql`
++ `20260823223514_222e9e03-bb14-4fa5-b270-d3463f77d476.sql` ("Migration
+A" in `KREPAY_CRITICAL_SECURITY_RUNBOOK.md`) — the actual, genuinely-
+committed migration pair, as distinct from the `20260823160000`/
+`20260823170000` filenames named earlier in this document's timeline,
+which were never committed to this repo.
 
 A verification query using `has_table_privilege`/`has_column_privilege`
 — the actual Postgres functions that govern access decisions, not a
