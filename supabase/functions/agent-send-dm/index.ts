@@ -2,6 +2,17 @@
 // Lightweight handler invoked by the agent-orchestrator when a user approves a
 // `send_dm` action. Inserts a row into public.messages as the authenticated user
 // (RLS-safe via their JWT), so the recipient sees a normal direct message.
+//
+// "One authority, two doors": this endpoint sends AI-composed text under the
+// caller's identity, and (unlike copilot-collaborator-tools) has no
+// legitimate direct human-UI caller today -- the app's normal "send a
+// message" flow inserts into public.messages itself, it doesn't call this
+// function. So the only thing that should ever be able to invoke it is
+// agent-orchestrator, after a human has approved that specific action. This
+// was previously reachable by anyone holding the user's own JWT with zero
+// approval linkage at all; it now requires proof of an approved orch_actions
+// row belonging to the caller. See _shared/agentAuthority.ts for the same
+// pattern applied to copilot-collaborator-tools.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
@@ -39,6 +50,50 @@ serve(async (req) => {
     const senderId = userData.user.id;
 
     const body = await req.json().catch(() => ({}));
+
+    // Require proof that a human approved this specific send -- see module
+    // doc above. The referenced orch_actions row just has to belong to this
+    // user and be approved/executed; we don't require its tool_name to be
+    // exactly "send_dm" because the only legitimate caller today
+    // (executeSpinUpProject) sends its kickoff DM as one step of an
+    // already-approved "spin_up_project" bundle, not a standalone action.
+    const agentActionId = body._agent_action_id ? String(body._agent_action_id) : null;
+    if (!agentActionId) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "This endpoint requires an approved agent action (_agent_action_id). " +
+            "Route DM sends through agent-orchestrator's proposal/approval flow.",
+        }),
+        { status: 428, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    {
+      const SERVICE_KEY_CHECK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const adminCheck = createClient(SUPABASE_URL, SERVICE_KEY_CHECK);
+      const { data: approvedAction, error: actionLookupErr } = await adminCheck
+        .from("orch_actions")
+        .select("id, user_id, status")
+        .eq("id", agentActionId)
+        .maybeSingle();
+      if (actionLookupErr || !approvedAction) {
+        return new Response(JSON.stringify({ error: "Referenced agent action not found." }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (approvedAction.user_id !== senderId) {
+        return new Response(JSON.stringify({ error: "Approved action does not belong to this user." }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (approvedAction.status !== "approved" && approvedAction.status !== "executed") {
+        return new Response(
+          JSON.stringify({ error: `Action is '${approvedAction.status}', not approved -- cannot send.` }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
     const to_user_id = String(body.to_user_id ?? "").trim();
     const messageBody = String(body.body ?? "").trim();
 

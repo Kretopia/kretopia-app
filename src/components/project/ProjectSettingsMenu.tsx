@@ -112,16 +112,26 @@ export function ProjectSettingsMenu({
   const handleDeleteProject = async () => {
     setDeleting(true);
     try {
-      // Delete related data first
-      await supabase.from("project_messages").delete().eq("project_id", project.id);
-      await supabase.from("project_tasks").delete().eq("project_id", project.id);
-      await supabase.from("project_files").delete().eq("project_id", project.id);
-      await supabase.from("project_collaborators").delete().eq("project_id", project.id);
-      await supabase.from("milestones").delete().eq("project_id", project.id);
-      await supabase.from("board_items").delete().eq("project_id", project.id);
-      await supabase.from("creative_assets").delete().eq("project_id", project.id);
-      
-      const { error } = await supabase.from("projects").delete().eq("id", project.id);
+      // Routed through copilot-collaborator-tools instead of cascading raw
+      // client-side deletes across 7 tables. Every one of them FKs to
+      // projects(id) ON DELETE CASCADE, so deleting the project row is
+      // sufficient -- and doing it through the shared edge function means
+      // this now goes through the same ownership check + audit trail
+      // (orch_runs/orch_actions) as the AI-agent path that performs the
+      // exact same delete_project action. See _shared/agentAuthority.ts.
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        "copilot-collaborator-tools",
+        {
+          body: {
+            _tool: "delete_project",
+            _source: "human_ui",
+            project_id: project.id,
+          },
+        },
+      );
+      const error = invokeError || (data as any)?.error
+        ? new Error((data as any)?.error || invokeError?.message || "Failed to delete project")
+        : null;
       if (error) throw error;
 
       toast({ title: "Project deleted", description: "The project has been permanently deleted" });

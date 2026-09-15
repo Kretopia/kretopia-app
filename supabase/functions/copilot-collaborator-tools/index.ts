@@ -3,7 +3,18 @@
 //
 // All tools run under the caller's JWT so RLS + project ownership rules apply.
 // Service role is used for cross-table reads (public_profiles_safe, system messages).
+//
+// remove_collaborator and delete_project are the two highest-stakes,
+// irreversible actions this function exposes (revoking access / destroying
+// a project), and they are reachable from three doors: agent-orchestrator
+// (which gates them behind its requires_approval flow before ever calling
+// this function), desk-agent (which previously called them directly with
+// zero gating), and the human UI (project settings / member management,
+// which now also calls this function instead of mutating tables directly,
+// so the same ownership check + audit trail applies everywhere). See
+// _shared/agentAuthority.ts for the shared rule these two tools enforce.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { authorizeHighStakesAction, recordExecutedAction } from "../_shared/agentAuthority.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -346,6 +357,19 @@ async function removeCollaborator(userId: string, body: any) {
     return json({ ok: false, error: "Only the project owner can remove collaborators." }, 403);
   }
 
+  // Shared authority check -- see _shared/agentAuthority.ts. A human acting
+  // through the app's own UI (or an already-approved agent-orchestrator
+  // action) proceeds; an agent (desk-agent) calling this directly without a
+  // prior approval is rejected here instead of silently removing access.
+  const authz = await authorizeHighStakesAction({
+    admin,
+    userId,
+    toolName: "remove_collaborator",
+    source: body._source,
+    agentActionId: body._agent_action_id,
+  });
+  if (!authz.ok) return json({ ok: false, error: authz.error }, authz.status);
+
   const { data: invitee } = await admin
     .from("public_profiles_safe")
     .select("full_name")
@@ -357,7 +381,19 @@ async function removeCollaborator(userId: string, body: any) {
     .delete()
     .eq("project_id", projectId)
     .eq("user_id", removeUserId);
-  if (error) return json({ ok: false, error: error.message }, 500);
+  if (error) {
+    await recordExecutedAction({
+      admin, userId, toolName: "remove_collaborator", toolArgs: body, source: authz.source,
+      ok: false, error: error.message, previewTitle: `Remove collaborator from "${project.title}"`,
+    });
+    return json({ ok: false, error: error.message }, 500);
+  }
+
+  await recordExecutedAction({
+    admin, userId, toolName: "remove_collaborator", toolArgs: body, source: authz.source,
+    ok: true, result: { project_id: projectId, removed_user_id: removeUserId },
+    previewTitle: `Remove ${invitee?.full_name ?? "collaborator"} from "${project.title}"`,
+  });
 
   return json({
     ok: true,
@@ -411,17 +447,47 @@ async function deleteProject(userId: string, body: any) {
     return json({ ok: false, error: "Only the project owner can delete this project." }, 403);
   }
 
+  // Shared authority check -- see _shared/agentAuthority.ts and the
+  // remove_collaborator comment above. Permanent deletion is the single
+  // highest-blast-radius action this function exposes.
+  const authz = await authorizeHighStakesAction({
+    admin,
+    userId,
+    toolName: "delete_project",
+    source: body._source,
+    agentActionId: body._agent_action_id,
+  });
+  if (!authz.ok) return json({ ok: false, error: authz.error }, authz.status);
+
+  // project_tasks/milestones/time_entries/project_files/project_messages/
+  // project_collaborators all FK to projects(id) ON DELETE CASCADE, so
+  // deleting the project row is sufficient -- but child rows are still
+  // useful to have queried/logged here for the audit trail below, and this
+  // keeps a single, DB-cascade-driven deletion path shared by every caller
+  // (this function is now also what the human-UI "Delete project" flow
+  // calls, instead of duplicating the cascade client-side).
   const { error } = await admin
     .from("projects")
     .delete()
     .eq("id", projectId)
     .eq("created_by", userId);
   if (error) {
+    await recordExecutedAction({
+      admin, userId, toolName: "delete_project", toolArgs: body, source: authz.source,
+      ok: false, error: error.message, previewTitle: `Delete "${project.title}"`,
+    });
     return json({
       ok: false,
       error: `Couldn't delete "${project.title}": ${error.message}. Try archiving instead.`,
     }, 500);
   }
+
+  await recordExecutedAction({
+    admin, userId, toolName: "delete_project", toolArgs: body, source: authz.source,
+    ok: true, result: { project_id: projectId, deleted: true },
+    previewTitle: `Delete "${project.title}"`,
+    previewBody: `"${project.title}" and all its tasks, files and chat were permanently deleted.`,
+  });
 
   return json({ ok: true, project_id: projectId, project_title: project.title, deleted: true });
 }

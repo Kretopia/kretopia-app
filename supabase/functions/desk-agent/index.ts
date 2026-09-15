@@ -240,7 +240,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "remove_collaborator",
-      description: "Remove a collaborator from a project. Owner-only. Defaults to current project.",
+      description: "Propose removing a collaborator from a project (queued for the user's explicit approval, never executes immediately). Owner-only. Defaults to current project.",
       parameters: {
         type: "object",
         properties: {
@@ -522,7 +522,7 @@ DECISION RULES:
    - LOW (ambiguous) → call ask_clarification with one short question.
 4. Multi-step: chain 2 tool calls max per turn (e.g. summary + suggested task). For "wrap up project" type requests, prefer get_project_summary + one concrete next action.
 5. Never invent collaborator ids — only use ones from the list above.
-6. SAFETY: draft_invoice creates a DRAFT only — never auto-send. add_credit logs to the user's own profile (safe). start_video_call posts a join link in chat (safe).
+6. SAFETY: draft_invoice creates a DRAFT only — never auto-send. add_credit logs to the user's own profile (safe). start_video_call posts a join link in chat (safe). remove_collaborator is NEVER executed immediately — it is queued for the user's explicit approval (tap-to-confirm), since it revokes someone's access.
 7. Money rule: if the user asks for an invoice without an amount, ask_clarification for amount + brief description. If the only source for an amount is a STUDIO BRAIN fact marked [UNVERIFIED], do NOT pass it straight to draft_invoice or draft_quote -- ask_clarification to have the user restate or confirm the number in this conversation first, even if they didn't ask you to double-check it.
 8. Keep tool arg \`message\` / \`title\` / \`question\` natural, friendly, under 200 chars.
 9. Treat USER FACTS as the only ground truth — never invent projects, invoices, or activity not listed.
@@ -545,6 +545,10 @@ When you respond in natural language (after tools), keep it to 1–2 sentences, 
 
     let toolCalls: any[] = [];
     let replyText = "";
+    // Receipt data (see 20260915100000 migration) -- populated from the AI
+    // gateway's `usage` field below when the planner call runs; stays 0 for
+    // the direct-tool shortcut path (requestedTool set), which makes no AI call.
+    let turnTokens = 0;
 
     if (requestedTool && [
       "create_task",
@@ -604,6 +608,7 @@ When you respond in natural language (after tools), keep it to 1–2 sentences, 
     }
 
     const aiJson = await aiResp.json();
+    turnTokens = Number(aiJson?.usage?.total_tokens || 0);
     const choice = aiJson.choices?.[0]?.message;
     toolCalls = choice?.tool_calls || [];
     replyText = choice?.content || "";
@@ -778,15 +783,78 @@ When you respond in natural language (after tools), keep it to 1–2 sentences, 
             .single();
           if (error) throw error;
           actions.push({ tool: name, args, result: data, ok: true });
+        } else if (name === "remove_collaborator") {
+          // remove_collaborator is one of the two highest-stakes tools
+          // copilot-collaborator-tools exposes (see _shared/agentAuthority.ts)
+          // -- it now REJECTS a direct desk-agent call with no prior
+          // approval (previously this executed immediately with zero
+          // gating, the exact "one authority, two doors" gap: the same
+          // tool required human approval on the agent-orchestrator path but
+          // none at all here). Instead of calling it directly, propose the
+          // action through the same orch_runs/orch_actions ledger
+          // agent-orchestrator uses, so the user sees a normal approval
+          // card (AgentApprovalCard, driven by decideAgentAction ->
+          // agent-orchestrator) rather than Kreto silently removing
+          // someone's access mid-chat.
+          const targetProjectId = String(args.target_project_id || project_id);
+          const removeUserId = String(args.user_id_to_remove || "");
+          const target = collaborators.find((c) => c.id === removeUserId);
+          const previewTitle = `Remove ${target?.full_name ?? "collaborator"} from "${project?.title ?? "this project"}"`;
+          const previewBody = `${target?.full_name ?? "They"} will immediately lose access to this project's chat, tasks, files and calls.`;
+
+          const { data: proposalRun, error: runErr } = await admin
+            .from("orch_runs")
+            .insert({
+              user_id: user.id,
+              agent_kind: "project_manager",
+              intent_text: message,
+              intent_classified: "ThriveDesk — remove_collaborator (needs approval)",
+              context: { project_id: targetProjectId, source: "desk_agent" },
+              status: "awaiting_approval",
+              source: "desk_agent",
+              model: "google/gemini-3-flash-preview",
+              tool_call_count: 1,
+              tool_names: ["remove_collaborator"],
+            })
+            .select("id")
+            .single();
+          if (runErr || !proposalRun) {
+            actions.push({ tool: name, args, result: { error: "Could not queue that for approval." }, ok: false });
+          } else {
+            const { data: proposalAction, error: actionErr } = await admin
+              .from("orch_actions")
+              .insert({
+                run_id: proposalRun.id,
+                user_id: user.id,
+                tool_name: "remove_collaborator",
+                tool_args: { target_project_id: targetProjectId, user_id_to_remove: removeUserId },
+                risk_level: "requires_approval",
+                status: "proposed",
+                source: "desk_agent",
+                preview_title: previewTitle,
+                preview_body: previewBody,
+              })
+              .select("*")
+              .single();
+            if (actionErr || !proposalAction) {
+              actions.push({ tool: name, args, result: { error: "Could not queue that for approval." }, ok: false });
+            } else {
+              actions.push({
+                tool: name,
+                args,
+                result: { needs_approval: true, action: proposalAction, removed_name: target?.full_name ?? null },
+                ok: true,
+              });
+            }
+          }
         } else if (
           name === "find_user" ||
           name === "list_my_projects" ||
-          name === "add_collaborator" ||
-          name === "remove_collaborator"
+          name === "add_collaborator"
         ) {
           // Delegate to copilot-collaborator-tools (runs under caller's JWT, RLS-safe)
-          const payload: Record<string, unknown> = { _tool: name, ...args };
-          if (name === "add_collaborator" || name === "remove_collaborator") {
+          const payload: Record<string, unknown> = { _tool: name, ...args, _source: "desk_agent" };
+          if (name === "add_collaborator") {
             // Default target_project_id to current project_id when null/missing
             if (!payload.target_project_id) payload.target_project_id = project_id;
           }
@@ -843,7 +911,9 @@ When you respond in natural language (after tools), keep it to 1–2 sentences, 
       }
       else if (a.tool === "remove_collaborator" && a.ok) {
         const r: any = a.result || {};
-        finalReply = `Removed ${r.removed_name ?? "them"} from ${r.project_title ?? "the project"}.`;
+        finalReply = r.needs_approval
+          ? `Queued removing ${r.removed_name ?? "them"} — tap Approve to confirm, they'll lose access as soon as you do.`
+          : `Removed ${r.removed_name ?? "them"} from ${r.project_title ?? "the project"}.`;
       }
       else if (a.tool === "find_user" && a.ok) {
         const cands: any[] = (a.result as any)?.candidates ?? [];
@@ -879,6 +949,30 @@ When you respond in natural language (after tools), keep it to 1–2 sentences, 
     ]);
 
     // Usage was already atomically incremented by consume_copilot_message above.
+
+    // Receipt (item: work-unit estimates and receipts) -- every desk-agent
+    // turn now leaves a durable record in the same orch_runs ledger
+    // agent-orchestrator uses (source='desk_agent'), instead of desk-agent
+    // turns being invisible to that system entirely. Foundation only: not
+    // shown in any UI yet, just captured. Best-effort -- must never fail
+    // the actual chat turn, which has already completed by this point.
+    await admin.from("orch_runs").insert({
+      user_id: user.id,
+      agent_kind: "project_manager",
+      intent_text: message.slice(0, 2000),
+      intent_classified: requestedTool ? `direct tool: ${requestedTool}` : "ThriveDesk chat turn",
+      context: { project_id },
+      status: actions.some((a) => !a.ok) ? "failed" : "completed",
+      source: "desk_agent",
+      model: requestedTool ? null : "google/gemini-3-flash-preview",
+      tokens_used: turnTokens,
+      tool_call_count: actions.length,
+      tool_names: Array.from(new Set(actions.map((a) => a.tool))),
+      summary: finalReply.slice(0, 500),
+    }).then(
+      ({ error }) => { if (error) console.warn("[desk-agent] receipt insert failed (non-fatal)", error); },
+      (e) => console.warn("[desk-agent] receipt insert failed (non-fatal)", e),
+    );
 
     return new Response(
       JSON.stringify({
