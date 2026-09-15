@@ -120,6 +120,33 @@ serve(async (req) => {
     const origin = req.headers.get("origin") || "https://www.kretopia.com";
     const currency = (event.ticket_currency || 'usd').toLowerCase();
 
+    // Create a pending order row *before* redirecting to Stripe. This is the
+    // authoritative record that verify-event-ticket checks against after
+    // payment -- the same mechanism the native (tiered) ticketing flow in
+    // checkout-event-tickets/verify-event-ticket already uses. Access is
+    // granted only once verify-event-ticket confirms with Stripe that this
+    // specific order's checkout session was actually paid; it is never
+    // granted from a client-supplied URL param alone.
+    const { data: order, error: orderErr } = await supabaseAdmin
+      .from('event_orders')
+      .insert({
+        event_id: eventId,
+        buyer_id: user.id,
+        buyer_email: user.email,
+        tier_id: null,
+        quantity: 1,
+        unit_price: event.ticket_price,
+        subtotal: event.ticket_price,
+        discount_amount: 0,
+        total_amount: event.ticket_price,
+        platform_fee: applicationFee / 100,
+        currency: currency.toUpperCase(),
+        status: 'pending',
+      })
+      .select()
+      .single();
+    if (orderErr || !order) throw new Error(orderErr?.message || "Could not create order");
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
@@ -143,15 +170,21 @@ serve(async (req) => {
           destination: hostProfile.stripe_account_id,
         },
         metadata: {
+          order_id: order.id,
           event_id: eventId,
           buyer_id: user.id,
           host_id: event.created_by,
           type: 'event_ticket',
         },
       },
-      success_url: `${origin}/sessions?ticket_success=${eventId}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/sessions?ticket_cancelled=${eventId}`,
+      // tab=events ensures Discover mounts the "events" TabsContent (which
+      // holds SessionsSection and its ticket_success/session_id handling) --
+      // that panel is not mounted by default, so without this the redirect
+      // would land on a page that never reads these params.
+      success_url: `${origin}/discover?tab=events&ticket_success=${eventId}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/discover?tab=events&ticket_cancelled=${eventId}`,
       metadata: {
+        order_id: order.id,
         event_id: eventId,
         buyer_id: user.id,
         host_id: event.created_by,
@@ -159,11 +192,17 @@ serve(async (req) => {
       },
     });
 
-    logStep("Checkout session created", { sessionId: session.id });
+    await supabaseAdmin
+      .from('event_orders')
+      .update({ stripe_session_id: session.id })
+      .eq('id', order.id);
+
+    logStep("Checkout session created", { sessionId: session.id, orderId: order.id });
 
     return new Response(JSON.stringify({
       url: session.url,
       sessionId: session.id,
+      orderId: order.id,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
