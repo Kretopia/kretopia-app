@@ -60,9 +60,11 @@ const CreatorSite = () => {
     const fetchSiteData = async () => {
       if (!userId) { setNotFound(true); setLoading(false); return; }
 
-      // Fetch profile - check if site is enabled
+      // public_profiles_safe, not raw profiles: RLS only allows a profile's
+      // owner to read their row directly, so a visitor loading someone
+      // else's public site would otherwise get zero rows back.
       const { data: profile, error } = await supabase
-        .from('profiles')
+        .from('public_profiles_safe')
         .select('user_id, full_name, role, bio, location, avatar_url, cover_image_url, website, calendly_url, linkedin_url, instagram_url, twitter_url, youtube_url, spotify_url, rate_range, site_template, site_enabled, site_headline, site_bio, site_sections, site_custom_blocks, professional_skills, subscription_tier, username')
         .eq('user_id', userId)
         .maybeSingle();

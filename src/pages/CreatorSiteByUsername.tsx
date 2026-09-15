@@ -66,12 +66,15 @@ const CreatorSiteByUsername = () => {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(username);
       const SELECT_COLS = "user_id, full_name, role, bio, location, avatar_url, cover_image_url, website, calendly_url, linkedin_url, instagram_url, twitter_url, youtube_url, spotify_url, rate_range, site_template, site_enabled, site_headline, site_bio, site_sections, site_custom_blocks, professional_skills, subscription_tier, username";
 
+      // public_profiles_safe, not raw profiles: RLS only allows a profile's
+      // owner to read their row directly, so a visitor loading someone
+      // else's public site by username would otherwise get zero rows back.
       let profile: any = null;
       if (isUuid) {
-        const { data } = await supabase.from("profiles").select(SELECT_COLS).eq("user_id", username).maybeSingle();
+        const { data } = await supabase.from("public_profiles_safe").select(SELECT_COLS).eq("user_id", username).maybeSingle();
         profile = data;
       } else {
-        const { data } = await supabase.from("profiles").select(SELECT_COLS).eq("username", username.toLowerCase()).maybeSingle();
+        const { data } = await supabase.from("public_profiles_safe").select(SELECT_COLS).eq("username", username.toLowerCase()).maybeSingle();
         profile = data;
       }
 
