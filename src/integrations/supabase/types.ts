@@ -12762,6 +12762,7 @@ export type Database = {
           id_verification_requested_at: string | null
           id_verified: boolean
           id_verified_at: string | null
+          is_discoverable: boolean
           identity_face_verified: boolean
           identity_face_verified_at: string | null
           imdb_url: string | null
@@ -12943,6 +12944,7 @@ export type Database = {
           id_verification_requested_at?: string | null
           id_verified?: boolean
           id_verified_at?: string | null
+          is_discoverable?: boolean
           identity_face_verified?: boolean
           identity_face_verified_at?: string | null
           imdb_url?: string | null
@@ -13124,6 +13126,7 @@ export type Database = {
           id_verification_requested_at?: string | null
           id_verified?: boolean
           id_verified_at?: string | null
+          is_discoverable?: boolean
           identity_face_verified?: boolean
           identity_face_verified_at?: string | null
           imdb_url?: string | null
