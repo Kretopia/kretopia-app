@@ -3,6 +3,7 @@ import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { EscrowAuthError } from "../_shared/escrowAuth.ts";
 import { resolveStripeSecretKey } from "../_shared/stripeEnv.ts";
+import { resolveMilestonePayee } from "../_shared/resolveMilestonePayee.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -94,18 +95,27 @@ serve(async (req) => {
         logStep("Capturing escrow", { milestoneId: milestone.id });
         await stripe.paymentIntents.capture(milestone.payment_intent_id);
 
+        // Who actually gets paid -- NOT necessarily milestone.created_by.
+        // See _shared/resolveMilestonePayee.ts.
+        const payee = await resolveMilestonePayee(supabaseAdmin, milestone);
+        if (payee.ambiguous) {
+          logStep("WARNING: ambiguous milestone payee -- falling back to created_by", {
+            milestoneId: milestone.id, candidateCount: payee.candidateCount,
+          });
+        }
+
         await supabaseAdmin
           .from('milestones')
           .update({
             status: 'paid',
             escrow_status: 'captured',
             paid_at: now.toISOString(),
-            paid_to: milestone.created_by,
+            paid_to: payee.payeeUserId,
           })
           .eq('id', milestone.id);
 
         // Auto-generate invoice
-        await generateInvoice(supabaseAdmin, milestone, user.id, now);
+        await generateInvoice(supabaseAdmin, milestone, payee.payeeUserId, user.id, now);
 
         results.push({ id: milestone.id, status: 'captured', success: true });
       } catch (err: any) {
@@ -193,7 +203,7 @@ serve(async (req) => {
   }
 });
 
-async function generateInvoice(supabaseAdmin: any, milestone: any, payerUserId: string, now: Date) {
+async function generateInvoice(supabaseAdmin: any, milestone: any, payeeUserId: string, payerUserId: string, now: Date) {
   try {
     const { data: payerProfile } = await supabaseAdmin
       .from('profiles')
@@ -204,17 +214,17 @@ async function generateInvoice(supabaseAdmin: any, milestone: any, payerUserId: 
     const { data: creatorProfile } = await supabaseAdmin
       .from('profiles')
       .select('full_name')
-      .eq('user_id', milestone.created_by)
+      .eq('user_id', payeeUserId)
       .single();
 
-    const { data: creatorAuth } = await supabaseAdmin.auth.admin.getUserById(milestone.created_by);
+    const { data: creatorAuth } = await supabaseAdmin.auth.admin.getUserById(payeeUserId);
 
     const invoiceNumber = `INV-${now.getFullYear()}-${now.getTime()}-${milestone.id.slice(0, 4)}`;
 
     await supabaseAdmin.from('invoices').insert({
       invoice_number: invoiceNumber,
       issued_by: payerUserId,
-      issued_to: milestone.created_by,
+      issued_to: payeeUserId,
       project_id: milestone.project_id,
       milestone_id: milestone.id,
       amount: milestone.amount,

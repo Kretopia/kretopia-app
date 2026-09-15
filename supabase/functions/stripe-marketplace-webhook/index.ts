@@ -3,6 +3,7 @@ import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { syncProjectStatusIfAllMilestonesPaid } from "../_shared/milestoneProjectSync.ts";
 import { resolveStripeSecretKey, assertEventMatchesMode } from "../_shared/stripeEnv.ts";
+import { resolveMilestonePayee } from "../_shared/resolveMilestonePayee.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -256,9 +257,15 @@ serve(async (req) => {
 
         try {
           const payerUserId = session.metadata?.userId;
+          const escrowPayee = await resolveMilestonePayee(supabaseAdmin, escrowMilestone);
+          if (escrowPayee.ambiguous) {
+            logStep("WARNING: ambiguous milestone payee -- falling back to created_by", {
+              milestoneId, candidateCount: escrowPayee.candidateCount,
+            });
+          }
           await supabaseAdmin.from("notifications").insert([
             {
-              user_id: escrowMilestone.created_by,
+              user_id: escrowPayee.payeeUserId,
               title: "Escrow funded 🔒",
               message: `Funds for "${escrowMilestone.title}" are now held in escrow, awaiting release.`,
               type: "payment",
@@ -326,6 +333,13 @@ serve(async (req) => {
           });
         }
 
+        const payee = await resolveMilestonePayee(supabaseAdmin, milestone);
+        if (payee.ambiguous) {
+          logStep("WARNING: ambiguous milestone payee -- falling back to created_by", {
+            milestoneId, candidateCount: payee.candidateCount,
+          });
+        }
+
         await supabaseAdmin
           .from("milestones")
           .update({
@@ -333,7 +347,7 @@ serve(async (req) => {
             escrow_status: "none",
             payment_intent_id: paymentIntentId,
             paid_at: new Date().toISOString(),
-            paid_to: milestone.created_by,
+            paid_to: payee.payeeUserId,
           })
           .eq("id", milestoneId);
 
@@ -350,7 +364,7 @@ serve(async (req) => {
             .from("referral_commissions")
             .insert({
               manager_id: managerTableId,
-              talent_user_id: milestone.created_by,
+              talent_user_id: payee.payeeUserId,
               source_type: "milestone",
               source_id: milestoneId,
               gross_amount: talentRate,
@@ -396,9 +410,9 @@ serve(async (req) => {
           const { data: creatorProfile } = await supabaseAdmin
             .from("profiles")
             .select("full_name")
-            .eq("user_id", milestone.created_by)
+            .eq("user_id", payee.payeeUserId)
             .single();
-          const { data: creatorAuth } = await supabaseAdmin.auth.admin.getUserById(milestone.created_by);
+          const { data: creatorAuth } = await supabaseAdmin.auth.admin.getUserById(payee.payeeUserId);
 
           const now = new Date();
           const lineItems = [
@@ -410,7 +424,7 @@ serve(async (req) => {
           const { error: invoiceError } = await supabaseAdmin.from("invoices").insert({
             invoice_number: `INV-${now.getFullYear()}-${now.getTime()}`,
             issued_by: payerUserId,
-            issued_to: milestone.created_by,
+            issued_to: payee.payeeUserId,
             project_id: milestone.project_id,
             milestone_id: milestoneId,
             amount: talentRate + platformFee + managerCommission,
@@ -432,7 +446,7 @@ serve(async (req) => {
 
         try {
           await supabaseAdmin.from("notifications").insert({
-            user_id: milestone.created_by,
+            user_id: payee.payeeUserId,
             title: "Payment received 💰",
             message: `$${talentRate.toFixed(2)} for "${milestone.title}" was paid on ${milestone.projects?.title || "your project"}.`,
             type: "payment",
@@ -631,8 +645,14 @@ serve(async (req) => {
           } else if (cancelledRows && cancelledRows.length > 0) {
             const m = cancelledRows[0] as { id: string; title: string; project_id: string; created_by: string };
             logStep("Escrow cancelled via PaymentIntent cancellation/expiry", { milestoneId, paymentIntentId: intent.id });
+            const cancelledPayee = await resolveMilestonePayee(supabaseAdmin, { created_by: m.created_by, project_id: m.project_id });
+            if (cancelledPayee.ambiguous) {
+              logStep("WARNING: ambiguous milestone payee -- falling back to created_by", {
+                milestoneId, candidateCount: cancelledPayee.candidateCount,
+              });
+            }
             await supabaseAdmin.from("notifications").insert({
-              user_id: m.created_by,
+              user_id: cancelledPayee.payeeUserId,
               title: "Escrow cancelled",
               message: `The held payment for "${m.title}" was cancelled or expired before release.`,
               type: "payment",
@@ -681,8 +701,14 @@ serve(async (req) => {
           .eq("payment_intent_id", charge.payment_intent as string)
           .maybeSingle();
         if (refundedMilestone) {
+          const refundedPayee = await resolveMilestonePayee(supabaseAdmin, refundedMilestone);
+          if (refundedPayee.ambiguous) {
+            logStep("WARNING: ambiguous milestone payee -- falling back to created_by", {
+              milestoneId: refundedMilestone.id, candidateCount: refundedPayee.candidateCount,
+            });
+          }
           await supabaseAdmin.from("notifications").insert({
-            user_id: refundedMilestone.created_by,
+            user_id: refundedPayee.payeeUserId,
             title: "Refund issued — needs review",
             message: `A refund was issued for "${refundedMilestone.title}". Please verify this milestone's status manually.`,
             type: "alert",
@@ -710,8 +736,14 @@ serve(async (req) => {
           .eq("payment_intent_id", charge.payment_intent as string)
           .maybeSingle();
         if (disputedMilestone) {
+          const disputedPayee = await resolveMilestonePayee(supabaseAdmin, disputedMilestone);
+          if (disputedPayee.ambiguous) {
+            logStep("WARNING: ambiguous milestone payee -- falling back to created_by", {
+              milestoneId: disputedMilestone.id, candidateCount: disputedPayee.candidateCount,
+            });
+          }
           await supabaseAdmin.from("notifications").insert({
-            user_id: disputedMilestone.created_by,
+            user_id: disputedPayee.payeeUserId,
             title: "Payment disputed — needs review",
             message: `A dispute was filed for "${disputedMilestone.title}". Please review immediately.`,
             type: "alert",

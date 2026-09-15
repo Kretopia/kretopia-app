@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { assertCanReleaseMilestone, EscrowAuthError, loadMilestoneForIntent } from "../_shared/escrowAuth.ts";
 import { syncProjectStatusIfAllMilestonesPaid } from "../_shared/milestoneProjectSync.ts";
 import { resolveStripeSecretKey } from "../_shared/stripeEnv.ts";
+import { resolveMilestonePayee } from "../_shared/resolveMilestonePayee.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -100,6 +101,16 @@ serve(async (req) => {
       throw new Error(`Failed to fetch milestone: ${fetchError.message}`);
     }
 
+    // Who actually gets paid -- NOT necessarily milestone.created_by. See
+    // _shared/resolveMilestonePayee.ts: on the primary "Brand creates the
+    // milestone" path, created_by is the Brand's own id, not the Creator's.
+    const payee = await resolveMilestonePayee(supabaseAdmin, milestone);
+    if (payee.ambiguous) {
+      logStep("WARNING: ambiguous milestone payee -- falling back to created_by", {
+        milestoneId, candidateCount: payee.candidateCount,
+      });
+    }
+
     // Update milestone in database
     const { error: updateError } = await supabaseAdmin
       .from('milestones')
@@ -107,7 +118,7 @@ serve(async (req) => {
         status: newStatus,
         escrow_status: newEscrowStatus,
         paid_at: action === 'capture' ? new Date().toISOString() : null,
-        paid_to: action === 'capture' ? milestone.created_by : null,
+        paid_to: action === 'capture' ? payee.payeeUserId : null,
       })
       .eq('id', milestoneId)
       .eq('payment_intent_id', paymentIntentId);
@@ -141,7 +152,7 @@ serve(async (req) => {
             .from('referral_commissions')
             .insert({
               manager_id: managerTableId,
-              talent_user_id: milestone.created_by,
+              talent_user_id: payee.payeeUserId,
               source_type: 'milestone',
               source_id: milestoneId,
               gross_amount: talentRate,
@@ -305,10 +316,10 @@ serve(async (req) => {
         const { data: creatorProfile } = await supabaseAdmin
           .from('profiles')
           .select('full_name')
-          .eq('user_id', milestone.created_by)
+          .eq('user_id', payee.payeeUserId)
           .single();
 
-        const { data: creatorAuth } = await supabaseAdmin.auth.admin.getUserById(milestone.created_by);
+        const { data: creatorAuth } = await supabaseAdmin.auth.admin.getUserById(payee.payeeUserId);
 
         const now = new Date();
         const invoiceNumber = `INV-${now.getFullYear()}-${now.getTime()}`;
@@ -345,7 +356,7 @@ serve(async (req) => {
         const invoiceData = {
           invoice_number: invoiceNumber,
           issued_by: user.id,
-          issued_to: milestone.created_by,
+          issued_to: payee.payeeUserId,
           project_id: milestone.project_id,
           milestone_id: milestoneId,
           amount: totalAmount,
@@ -393,7 +404,7 @@ serve(async (req) => {
         // Pay creator notif
         await supabaseAdmin.from('notifications').insert([
           {
-            user_id: milestone.created_by,
+            user_id: payee.payeeUserId,
             title: 'Payment released! 💰',
             message: `$${Number(milestone.amount).toFixed(2)} for "${milestone.title}" was released to you on ${projectTitle}.`,
             type: 'payment',
@@ -419,7 +430,7 @@ serve(async (req) => {
         // Cancel/refund notif
         await supabaseAdmin.from('notifications').insert([
           {
-            user_id: milestone.created_by,
+            user_id: payee.payeeUserId,
             title: 'Escrow refunded',
             message: `The client cancelled the escrow for "${milestone.title}" — funds were refunded.`,
             type: 'payment',
