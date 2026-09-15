@@ -53,7 +53,7 @@ export default function CreditsDashboard() {
     const { data, error } = await supabase
       .from("profiles")
       .select(
-        "full_name, role, bio, avatar_url, location, is_discoverable, verification_score, icdb_creator_id, availability_status, availability_note, collab_intent, hourly_rate, project_rate, rate_currency, skills, site_headline",
+        "full_name, role, bio, avatar_url, location, is_discoverable, verification_score, icdb_creator_id, availability_status, availability_note, collab_intent, hourly_rate, project_rate, rate_currency, professional_skills, site_headline",
       )
       .eq("user_id", uid)
       .maybeSingle();
@@ -62,7 +62,26 @@ export default function CreditsDashboard() {
       return;
     }
     setProfileError(false);
-    setProfile((data as unknown as OwnProfile) ?? null);
+    if (!data) {
+      setProfile(null);
+      return;
+    }
+    // profiles has no `skills` column (CreditsHireMePanel's prop name, not a
+    // real column -- confirmed via types.ts and a full migration grep,
+    // exactly the same "column doesn't exist" failure as is_discoverable
+    // above, just fixed in code instead of schema since the real data
+    // already lives elsewhere under a different name/shape).
+    // professional_skills is Json, either a string array or a keyed
+    // object (matching src/lib/profileCompletion.ts's own handling of the
+    // same field) -- normalize either shape to the flat string[] the panel
+    // already renders.
+    const { professional_skills, ...rest } = data as Record<string, unknown>;
+    const skills = Array.isArray(professional_skills)
+      ? professional_skills.filter((s): s is string => typeof s === "string")
+      : professional_skills && typeof professional_skills === "object"
+        ? Object.keys(professional_skills as Record<string, unknown>)
+        : [];
+    setProfile({ ...rest, skills } as unknown as OwnProfile);
   };
 
   useEffect(() => {
