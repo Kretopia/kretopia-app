@@ -3,6 +3,7 @@
 // Returns plan_id; the UI renders a PlanCard and the user taps Approve.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { loadCopilotContext, renderContextPreamble } from "../_shared/copilotContext.ts";
+import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,6 +39,9 @@ Deno.serve(async (req) => {
     const { data: claimsData, error: claimErr } = await userClient.auth.getClaims(token);
     const userId = claimsData?.claims?.sub as string | undefined;
     if (claimErr || !userId) return json({ error: "Invalid session" }, 401);
+
+    const rateLimit = await checkAiFeatureRateLimit(admin, userId, "copilot-planner");
+    if (!rateLimit.allowed) return rateLimit.response;
 
     const body = await req.json().catch(() => ({}));
     const goal: string = String(body.goal ?? "").trim();

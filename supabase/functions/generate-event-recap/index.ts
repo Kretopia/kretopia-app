@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { GEMINI_FLASH } from "../_shared/aiModels.ts";
+import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,6 +39,9 @@ serve(async (req) => {
     }
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+
+    const rateLimit = await checkAiFeatureRateLimit(admin, user.id, "generate-event-recap");
+    if (!rateLimit.allowed) return rateLimit.response;
 
     const { data: event, error: evErr } = await admin
       .from("creative_jams")

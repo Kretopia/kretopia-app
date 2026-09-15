@@ -29,6 +29,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { wrapUntrustedContent, PROMPT_INJECTION_DEFENSE_CLAUSE } from "../_shared/promptIsolation.ts";
 import { GEMINI_FLASH, GEMINI_PRO } from "../_shared/aiModels.ts";
+import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -176,6 +177,9 @@ Deno.serve(async (req) => {
     if (!user) return json({ error: "Invalid session" }, 401);
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+
+    const rateLimit = await checkAiFeatureRateLimit(admin, user.id, "studio-ingest");
+    if (!rateLimit.allowed) return rateLimit.response;
 
     const body = await req.json().catch(() => ({}));
     const project_id: string = String(body.project_id ?? "");

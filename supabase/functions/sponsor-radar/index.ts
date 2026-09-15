@@ -2,6 +2,7 @@
 // On-demand: { niche?: string, project_id?: string, project_title?: string, count?: number }
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -104,6 +105,9 @@ serve(async (req) => {
     const { data: u } = await userClient.auth.getUser();
     const userId = u?.user?.id;
     if (!userId) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: corsHeaders });
+
+    const rateLimit = await checkAiFeatureRateLimit(supabase, userId, "sponsor-radar");
+    if (!rateLimit.allowed) return rateLimit.response;
 
     const body = await req.json().catch(() => ({}));
     const count = Math.min(8, Math.max(3, Number(body.count) || 5));

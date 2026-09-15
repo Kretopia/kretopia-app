@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAdminOrCron } from "../_shared/admin-guard.ts";
 import { GEMINI_FLASH } from "../_shared/aiModels.ts";
+import { wrapUntrustedContent, PROMPT_INJECTION_DEFENSE_CLAUSE } from "../_shared/promptIsolation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -151,14 +152,14 @@ serve(async (req) => {
                       messages: [
                         {
                           role: "system",
-                          content: `You are extracting professional profile information for "${name}". 
+                          content: `You are extracting professional profile information for "${name}".
 Extract all available information including their bio, professional roles, location, skills, notable works/credits, and awards.
 Only extract if the content is definitively about this specific person.
-Be thorough - extract skills from their work history and credits.`
+Be thorough - extract skills from their work history and credits.${PROMPT_INJECTION_DEFENSE_CLAUSE}`
                         },
                         {
                           role: "user",
-                          content: `Extract comprehensive profile for "${name}" from these sources:\n\n${combinedContent.substring(0, 30000)}`
+                          content: `Extract comprehensive profile for "${name}" from these sources:\n\n${wrapUntrustedContent('scraped web search results', combinedContent.substring(0, 30000))}`
                         }
                       ],
                       tools: [

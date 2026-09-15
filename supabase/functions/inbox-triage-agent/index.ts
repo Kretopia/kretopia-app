@@ -10,6 +10,7 @@
 //
 // Throttle: skip messages already in inbox_triage_classifications.
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -94,6 +95,13 @@ Deno.serve(async (req) => {
       const { data: u } = await userClient.auth.getUser();
       if (!u?.user) return json({ error: "unauthorized" }, 401);
       scopeUserId = u.user.id;
+
+      // Only the user-triggered path is gated here -- the cron path above
+      // has no single user to key a per-user limit on, and is already
+      // protected by CRON_SECRET.
+      const rateLimit = await checkAiFeatureRateLimit(admin, scopeUserId, "inbox-triage-agent");
+      if (!rateLimit.allowed) return rateLimit.response;
+
       if (typeof body?.message_id === "string") singleMessageId = body.message_id;
     }
 

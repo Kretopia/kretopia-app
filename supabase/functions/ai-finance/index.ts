@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,6 +25,9 @@ serve(async (req) => {
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData.user) throw new Error("Authentication failed");
     const userId = userData.user.id;
+
+    const rateLimit = await checkAiFeatureRateLimit(supabase, userId, "ai-finance");
+    if (!rateLimit.allowed) return rateLimit.response;
 
     const { action, expenses, invoices, expense } = await req.json();
 

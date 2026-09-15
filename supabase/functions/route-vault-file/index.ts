@@ -4,6 +4,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { GEMINI_FLASH } from "../_shared/aiModels.ts";
+import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -115,6 +116,9 @@ Deno.serve(async (req) => {
     }
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+    const rateLimit = await checkAiFeatureRateLimit(admin, user.id, "route-vault-file");
+    if (!rateLimit.allowed) return rateLimit.response;
 
     const [{ data: file }, { data: project }, { data: folders }] = await Promise.all([
       admin.from("project_files").select("id, file_name, file_type, folder_id, user_id").eq("id", file_id).maybeSingle(),

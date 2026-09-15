@@ -2,6 +2,7 @@
 // Triggered on demand: { user_id? } (defaults to caller). Cron-friendly when called with service key.
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { checkAiFeatureRateLimit } from "../_shared/aiRateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -112,6 +113,9 @@ serve(async (req) => {
       userId = u?.user?.id;
     }
     if (!userId) return new Response(JSON.stringify({ error: "no_user" }), { status: 400, headers: corsHeaders });
+
+    const rateLimit = await checkAiFeatureRateLimit(supabase, userId, "auto-epk-updater");
+    if (!rateLimit.allowed) return rateLimit.response;
 
     const result = await processUser(supabase, userId);
     return new Response(JSON.stringify(result), {
