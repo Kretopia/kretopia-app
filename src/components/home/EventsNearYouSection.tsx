@@ -72,7 +72,12 @@ export const EventsNearYouSection = ({ limit = 8 }: { limit?: number }) => {
             .from("jam_participants")
             .select("jam_id")
             .in("jam_id", ids)
-            .in("status", ["rsvp", "going", "checked_in"]);
+            // 'rsvp' was a dead literal: the ticket-purchase edge functions
+            // wrote it, but jam_participants_status_check never allowed it,
+            // so it never actually landed in the table (see
+            // 20260915100000_close_event_ticket_capacity_race_and_status_drift.sql).
+            // Both purchase paths now write 'going', already covered below.
+            .in("status", ["going", "checked_in"]);
           (parts || []).forEach((p: any) => {
             counts[p.jam_id] = (counts[p.jam_id] || 0) + 1;
           });
