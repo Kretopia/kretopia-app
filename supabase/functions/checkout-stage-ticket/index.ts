@@ -58,7 +58,7 @@ serve(async (req) => {
       success_url: `${origin}/circle/stage/${stage_id}?ticket=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/circle/stage/${stage_id}?ticket=cancel`,
       metadata: { stage_id, user_id: user.id, kind: "curated_stage" },
-    });
+    }, { idempotencyKey: `stage-ticket-checkout-${stage_id}-${user.id}` });
 
     // Record pending order
     try {

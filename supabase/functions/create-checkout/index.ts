@@ -79,7 +79,13 @@ serve(async (req) => {
       };
     }
 
-    const session = await stripe.checkout.sessions.create(sessionParams);
+    // Stable across retries of the same logical request: same user + tier +
+    // interval + trial-eligibility resolve to the same key, so a client
+    // retry (or an SDK-level network retry) reuses the original session
+    // instead of opening a second one.
+    const idempotencyKey = `subscription-checkout-${user.id}-${tier}-${interval}-${hadPreviousSub ? "resub" : "trial"}`;
+
+    const session = await stripe.checkout.sessions.create(sessionParams, { idempotencyKey });
 
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
