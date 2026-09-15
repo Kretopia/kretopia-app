@@ -8,6 +8,19 @@ this session was never given an exact wall-clock time — do not treat a
 blank as zero or as "unknown risk," it means exactly what it says:
 not recorded.
 
+**(corrected 2026-09-15)**: the two migration filenames in the table
+below (`20260823160000_krepay_security_hardening.sql`,
+`20260823170000_krepay_security_hardening_followup.sql`) were never
+actually committed to this repo — confirmed absent from `git log --all`
+against `supabase/migrations/`. They existed only as SQL blocks quoted
+inline in `KREPAY_CRITICAL_SECURITY_RUNBOOK.md`. Whatever was applied and
+found reverted per this report's rows was applied directly against the
+database, not through either of these files. The actual, committed fix
+is `supabase/migrations/20260823223419_43def0af-be27-4a94-892e-2e8b0ad37eef.sql`
++ `20260823223514_222e9e03-bb14-4fa5-b270-d3463f77d476.sql` ("Migration
+A"), applied later and independently confirmed closed (see
+`KREPAY_CRITICAL_SECURITY_RUNBOOK.md`'s final status).
+
 | Migration / statement | Target project (asserted) | Environment | Start time | End time | Result reported | Operator | Verification queries run after | Before/after security state |
 |---|---|---|---|---|---|---|---|---|
 | `20260823160000_krepay_security_hardening.sql` | Kretopia (`kwmcocsitwssrtzkdojh`) — not independently confirmed by this session, taken on your word | Production (Lovable Cloud) | not recorded | not recorded | Reported success | You, via Lovable Cloud SQL editor | Yes — `information_schema.column_privileges` query, unfiltered by `privilege_type` | Before: unknown (not queried pre-migration). After (first check): 5 of 6 target columns showed zero rows (correct); `creator_wallets.stripe_account_id` showed a lingering `UPDATE` grant |

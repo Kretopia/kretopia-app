@@ -207,6 +207,13 @@ In priority order:
 1. **Apply `20260823160000_krepay_security_hardening.sql`** — closes the
    two CRITICAL wallet vulnerabilities (KP-01/KP-02). This is the single
    highest-priority item in this entire report.
+   *(corrected 2026-09-15: this repo never had a file named
+   `20260823160000`/`20260823170000` in `supabase/migrations/` — confirmed
+   absent from `git log --all`. The actual, committed fix for this class
+   of finding is `supabase/migrations/20260823223419_43def0af-be27-4a94-892e-2e8b0ad37eef.sql`
+   + `20260823223514_222e9e03-bb14-4fa5-b270-d3463f77d476.sql` ("Migration
+   A"), which was applied and independently confirmed closed — see
+   `KREPAY_CRITICAL_SECURITY_RUNBOOK.md`'s final status.)*
 2. **Apply `20260823150000_hire_loop_notification_fix.sql`** — makes the
    hire-acceptance notification actually work.
 3. **Run `supabase gen types`** after both are applied and diff the

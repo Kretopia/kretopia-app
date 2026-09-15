@@ -45,6 +45,12 @@ be exactly the kind of unverified claim those rules exist to prevent.
 1. **Apply both migrations** (`20260823150000_hire_loop_notification_fix.sql`,
    `20260823160000_krepay_security_hardening.sql`) to a database — ideally
    a non-production one first.
+   *(corrected 2026-09-15: this repo never had a file named
+   `20260823160000` in `supabase/migrations/` — confirmed absent from
+   `git log --all`. The actual, committed fix for the wallet-RLS class of
+   finding this pointed at is `supabase/migrations/20260823223419_43def0af-be27-4a94-892e-2e8b0ad37eef.sql`
+   + `20260823223514_222e9e03-bb14-4fa5-b270-d3463f77d476.sql`, applied and
+   confirmed closed — see `KREPAY_CRITICAL_SECURITY_RUNBOOK.md`.)*
 2. **Deploy `krepay-ai-insights`** (and confirm the other edited edge
    functions — `stripe-marketplace-webhook`, `wallet-payout`,
    `wallet-transfer` — are redeployed with today's changes).
