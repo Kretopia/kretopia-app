@@ -5,6 +5,7 @@
 // start_video_call, remember_memory, etc).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { GEMINI_FLASH } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,7 +18,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
-const STT_MODEL = "google/gemini-2.5-flash";
+const STT_MODEL = GEMINI_FLASH;
 
 interface ReqBody {
   audio_base64: string;

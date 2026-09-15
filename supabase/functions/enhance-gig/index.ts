@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { GEMINI_FLASH, GEMINI_FLASH_IMAGE } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -73,7 +74,7 @@ Rewrite to be professional, compelling, well-structured. Keep factual details ac
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: GEMINI_FLASH,
           messages: [{ role: "user", content: prompt }],
           tools: [{
             type: "function",
@@ -138,7 +139,7 @@ Rewrite to be professional, compelling, well-structured. Keep factual details ac
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash-image",
+            model: GEMINI_FLASH_IMAGE,
             messages: [{ role: "user", content: imagePrompt }],
             modalities: ["image", "text"],
           }),

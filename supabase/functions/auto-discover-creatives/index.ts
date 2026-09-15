@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireAdminOrCron } from "../_shared/admin-guard.ts";
+import { GEMINI_FLASH } from "../_shared/aiModels.ts";
 
 // ========================================
 // 🚫 AUTO-DISCOVERY PAUSED
@@ -483,7 +484,7 @@ async function extractCreativesFromContent(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: GEMINI_FLASH,
         messages: [
           {
             role: 'system',
@@ -652,7 +653,7 @@ async function enrichCreativeProfile(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: GEMINI_FLASH,
         messages: [
           {
             role: 'system',

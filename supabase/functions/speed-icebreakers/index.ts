@@ -2,6 +2,7 @@
 // Used by the in-call overlay so creators have something to lean on in the first 30 seconds.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { GEMINI_FLASH_LITE } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,7 +71,7 @@ Rules:
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: GEMINI_FLASH_LITE,
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
       }),

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { GEMINI_FLASH } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,7 +38,7 @@ async function aiExtract(prompt: string, systemPrompt: string, lovableKey: strin
     method: 'POST',
     headers: { 'Authorization': `Bearer ${lovableKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
+      model: GEMINI_FLASH,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt },

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { GEMINI_FLASH } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -65,7 +66,7 @@ Respond concisely and helpfully. If it's a bug, try to understand the exact step
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: GEMINI_FLASH,
         messages,
         temperature: 0.7,
         max_tokens: 500,
@@ -103,7 +104,7 @@ Respond concisely and helpfully. If it's a bug, try to understand the exact step
       ticket_id: ticketId,
       sender_type: 'ai',
       content: aiMessage,
-      metadata: { category, model: 'google/gemini-2.5-flash' }
+      metadata: { category, model: GEMINI_FLASH }
     });
 
     // Update ticket category if not already set
@@ -141,7 +142,7 @@ async function categorizeIssue(messages: any[], apiKey: string): Promise<string 
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: GEMINI_FLASH,
         messages: [
           {
             role: "system",

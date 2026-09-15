@@ -1,6 +1,7 @@
 // Classifies a user prompt into a Thrive intent and returns a routing payload.
 // No DB writes — pure routing decision used by the conversational Home hero.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { GEMINI_FLASH_LITE } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,7 +50,7 @@ serve(async (req) => {
       signal: ac.signal,
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: GEMINI_FLASH_LITE,
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: prompt.trim().slice(0, 500) },

@@ -6,6 +6,7 @@
 //   sponsors: [{ label, why }]
 // }
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { GEMINI_FLASH } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -103,7 +104,7 @@ ${transcript.slice(0, 18000)}`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: GEMINI_FLASH,
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: userPrompt },
