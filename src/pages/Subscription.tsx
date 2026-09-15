@@ -100,7 +100,13 @@ export default function Subscription() {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke("create-checkout", { body: { priceId } });
+      // The server resolves the actual (test- or live-mode) Stripe Price ID
+      // from `tier` + `interval` — it never trusts a client-supplied Price
+      // ID, since the frontend has no visibility into which Stripe mode the
+      // backend is running in (see supabase/functions/_shared/subscriptionPrices.ts).
+      const { data, error } = await supabase.functions.invoke("create-checkout", {
+        body: { tier, interval: billingInterval },
+      });
       if (error) throw error;
       if (data?.url) window.open(data.url, "_blank");
     } catch (error: any) {
