@@ -75,6 +75,13 @@ export const CallRecapSheet = ({ open, onOpenChange, transcriptId }: Props) => {
 
     const load = async () => {
       setLoading(true);
+      // Authorization is enforced entirely by RLS
+      // (public.user_can_view_call_transcript) -- this component has no
+      // role/host check of its own. For stage/meeting/event transcripts
+      // that RLS predicate is host-only by design (see
+      // supabase/migrations/20260915100000_document_call_transcript_host_only_visibility.sql),
+      // so a non-host opening this sheet for one of those simply gets no row
+      // back (tRow stays null) rather than a 403.
       const [{ data: tRow }, { data: aRows }] = await Promise.all([
         supabase.from("call_transcripts").select("*").eq("id", transcriptId).maybeSingle(),
         supabase.from("call_action_items").select("*").eq("transcript_id", transcriptId).order("created_at"),

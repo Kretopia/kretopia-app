@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { ROOM_SESSION_CEILING_SECONDS } from "../_shared/roomSessionLimits.ts";
+import { checkRoomCostGate } from "../_shared/subscriptionRoomLimits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,6 +45,25 @@ serve(async (req) => {
     }
     const userId = claims.claims.sub as string;
 
+    // Cost-gating proof of concept (see _shared/subscriptionRoomLimits.ts) --
+    // this is the first of the 15 room-creating functions wired through the
+    // tier -> limits structure. Placeholder limits are deliberately generous
+    // (20 concurrent live stages/tier) so this does not restrict any real
+    // user yet; it demonstrates the mechanism ready to extend once product
+    // sets real per-tier numbers.
+    const { data: profileRow } = await admin
+      .from("profiles")
+      .select("subscription_tier")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const costGate = await checkRoomCostGate(admin, userId, profileRow?.subscription_tier ?? "free");
+    if (!costGate.allowed) {
+      return new Response(
+        JSON.stringify({ error: costGate.reason, code: "ROOM_COST_LIMIT" }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const title = String(body.title ?? "").trim().slice(0, 100) || "Open Stage";
     const vibe_tag = body.vibe_tag ? String(body.vibe_tag).slice(0, 40) : null;
@@ -60,7 +81,13 @@ serve(async (req) => {
     const maxParticipants = format === "audience" ? 200 : format === "open_1to1" ? 2 : 50;
 
     const roomName = `ss-${crypto.randomUUID().replace(/-/g, "").slice(0, 30)}`;
-    const exp = Math.floor(Date.now() / 1000) + 4 * 60 * 60; // 4h
+    // Session length is the lesser of the shared ceiling and this tier's
+    // (currently identical, placeholder) cost-gate limit -- see
+    // _shared/subscriptionRoomLimits.ts. A no-op today since every tier's
+    // placeholder equals the shared ceiling, but it demonstrates duration
+    // actually flowing through the tier limit, not just the room count.
+    const sessionSeconds = Math.min(ROOM_SESSION_CEILING_SECONDS, costGate.limits.maxSessionSeconds);
+    const exp = Math.floor(Date.now() / 1000) + sessionSeconds;
 
     const createRes = await fetch(`${DAILY_API}/rooms`, {
       method: "POST",
