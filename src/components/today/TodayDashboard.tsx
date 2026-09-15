@@ -42,7 +42,13 @@ export function TodayDashboard({ firstName, peopleForYou, profile, profileFull, 
     !!effectiveProfile && checkProfileCompletion(effectiveProfile, myCredits).percentage < 50;
 
   return (
-    <div className="space-y-4">
+    // pb-28 matches UnifiedHome.tsx's own footer-wrapper convention for
+    // the fixed bottom chrome (composer bar + bottom nav) -- without it,
+    // whichever card happens to land at the viewport's natural bottom edge
+    // on first load (often the priority action's Complete/Snooze row) is
+    // partially covered until the user scrolls. Verified visually at
+    // 375px width: Complete/Snooze fully clear the composer bar with this.
+    <div className="space-y-4 pb-28">
       <div className="flex items-center gap-1.5 px-0.5">
         <Radio className="h-3 w-3 animate-pulse" style={{ color: "hsl(var(--energy))" }} />
         <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Live</span>
