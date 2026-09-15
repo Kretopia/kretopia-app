@@ -48,11 +48,25 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { soundStageMemberToState } from "@/lib/stageParticipants";
 
 /**
  * Clubhouse / Twitter-Spaces style Sound Stage room.
  * Audio-first. Stage (host + speakers) on top, audience grid below.
  * Audience can raise hand → host promotes to speaker.
+ *
+ * This is the "ephemeral raise-hand" mechanism in the shared
+ * StageParticipantState model (src/lib/stageParticipants.ts) -- Role +
+ * handRaised below map onto that model via soundStageMemberToState(). Unlike
+ * Curated Stage's DB-persisted curated_stage_raised_hands /
+ * curated_stage_turns, this state lives only in Daily app-message broadcasts
+ * ({type:"raise-hand"|"promote"|"demote"}) and each client's own React
+ * state/refs -- nothing is written to the database. That's a deliberate,
+ * lower-stakes choice for Open Stages' informal, free-flowing format, but it
+ * does mean a participant who joins (or a host who reconnects) after a
+ * promote/demote broadcast was sent starts from an empty roster -- see the
+ * "roster-request" handling below, which asks existing peers to re-announce
+ * current speakers on join specifically to close that gap.
  *
  * Fullscreen destination, not an overlay -- a fixed inset-0 layer above the
  * app chrome (there is no dedicated route; the join/create data flow through
@@ -110,7 +124,14 @@ type ProfileRow = {
 type StageMessage =
   | { type: "raise-hand"; raised: boolean }
   | { type: "promote"; userId: string }
-  | { type: "demote"; userId: string };
+  | { type: "demote"; userId: string }
+  // Broadcast once by a client right after it joins/rejoins. Every peer that
+  // currently believes itself to be a speaker responds by re-broadcasting
+  // its own "promote" -- this is how a late joiner (or a host who refreshed
+  // and lost their in-memory speakersRef) learns the current speaker roster,
+  // since that roster is never persisted anywhere. See the module header
+  // comment for why this stays ephemeral instead of moving to the DB.
+  | { type: "roster-request" };
 
 type WindowWithWebkitAudioContext = Window &
   typeof globalThis & {
@@ -213,6 +234,12 @@ export function SoundStageRoom({
 
   // Track who the host has promoted to speaker (host-local, broadcast via app-message)
   const speakersRef = useRef<Set<string>>(new Set());
+  // Whether THIS client is currently a promoted speaker -- kept separately
+  // from `speakersRef` (which tracks everyone) so a "roster-request" handler
+  // can cheaply check "am I one of the people who should self-announce?"
+  // without needing this client's own user id in scope at handler-definition
+  // time. See the "roster-request" StageMessage case below.
+  const amISpeakerRef = useRef(false);
 
   useEffect(() => {
     isHostRef.current = isHost;
@@ -571,11 +598,23 @@ export function SoundStageRoom({
             }
             if (msg.type === "promote") {
               if (msg.userId) speakersRef.current.add(msg.userId);
+              if (msg.userId && msg.userId === user?.id) amISpeakerRef.current = true;
               refreshMembers().catch(() => {});
             }
             if (msg.type === "demote") {
               if (msg.userId) speakersRef.current.delete(msg.userId);
+              if (msg.userId && msg.userId === user?.id) amISpeakerRef.current = false;
               refreshMembers().catch(() => {});
+            }
+            if (msg.type === "roster-request") {
+              // Every current speaker (including a host who is also on
+              // stage) self-announces so the requester -- a late joiner, or
+              // a host/speaker who just reconnected and lost their local
+              // speakersRef -- learns the current roster. Re-uses the
+              // "promote" message rather than inventing a new payload shape.
+              if (amISpeakerRef.current && user?.id) {
+                callRef.current?.sendAppMessage({ type: "promote", userId: user.id }, "*");
+              }
             }
           },
         );
@@ -660,6 +699,16 @@ export function SoundStageRoom({
         setJoining(false);
         setPhase("in");
         refreshMembers().catch(() => {});
+        // Ask any already-connected speakers to re-announce themselves (see
+        // the "roster-request" StageMessage case above) so this client's
+        // speakersRef isn't just empty until the next unrelated
+        // promote/demote happens to fire -- covers both a fresh joiner and a
+        // host/speaker reconnecting after a refresh. Small delay so the
+        // app-message listener registered just above is guaranteed live on
+        // every peer's side before we ask.
+        setTimeout(() => {
+          callRef.current?.sendAppMessage({ type: "roster-request" }, "*");
+        }, 400);
       } catch (e: unknown) {
         console.error("[SoundStageRoom] join failed", e);
         toast({

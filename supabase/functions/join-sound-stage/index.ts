@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { roomSessionExpiry } from "../_shared/roomSessionLimits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,7 +64,10 @@ serve(async (req) => {
       });
     }
 
-    const exp = Math.floor(Date.now() / 1000) + 2 * 60 * 60;
+    // Was previously 2h here, independent of the 4h create-sound-stage used
+    // for the same stage — now unified on the shared ceiling. See
+    // _shared/roomSessionLimits.ts for the full previously-inconsistent list.
+    const exp = roomSessionExpiry();
     const isHost = stage.host_user_id === userId;
     const tokenRes = await fetch(`${DAILY_API}/meeting-tokens`, {
       method: "POST",

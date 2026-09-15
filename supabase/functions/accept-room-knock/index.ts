@@ -3,6 +3,7 @@
 // guest-joinable share URL.
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { roomSessionExpiry } from "../_shared/roomSessionLimits.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -61,8 +62,7 @@ serve(async (req) => {
     // Accept — create Daily room
     const DAILY_API_KEY = Deno.env.get("DAILY_API_KEY");
     if (!DAILY_API_KEY) throw new Error("DAILY_API_KEY not configured");
-    const startSec = Math.floor(Date.now() / 1000);
-    const exp = startSec + 4 * 60 * 60;
+    const exp = roomSessionExpiry(); // shared ceiling — see _shared/roomSessionLimits.ts
     const roomName = `room-${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
 
     const roomRes = await fetch(`${DAILY_API}/rooms`, {

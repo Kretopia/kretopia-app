@@ -997,6 +997,7 @@ export type Database = {
           live_captions: Json
           participants: Json
           project_id: string | null
+          recording_deleted_at: string | null
           recording_id: string | null
           recording_url: string | null
           status: string
@@ -1020,6 +1021,7 @@ export type Database = {
           live_captions?: Json
           participants?: Json
           project_id?: string | null
+          recording_deleted_at?: string | null
           recording_id?: string | null
           recording_url?: string | null
           status?: string
@@ -1043,6 +1045,7 @@ export type Database = {
           live_captions?: Json
           participants?: Json
           project_id?: string | null
+          recording_deleted_at?: string | null
           recording_id?: string | null
           recording_url?: string | null
           status?: string

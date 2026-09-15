@@ -2,6 +2,7 @@
 // Supports sources: studio | dm | profile | event | adhoc | circle.
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { ROOM_SESSION_CEILING_SECONDS } from "../_shared/roomSessionLimits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -64,11 +65,12 @@ serve(async (req) => {
     const transcription = body.transcript_enabled !== false;
     const knocking = body.knocking_enabled !== false;
 
-    // Daily room — exp 4h after scheduled time (or now)
+    // Daily room — exp is the shared session ceiling after scheduled time
+    // (or now). See _shared/roomSessionLimits.ts.
     const startSec = body.scheduled_for
       ? Math.floor(new Date(body.scheduled_for).getTime() / 1000)
       : Math.floor(Date.now() / 1000);
-    const exp = startSec + 4 * 60 * 60;
+    const exp = startSec + ROOM_SESSION_CEILING_SECONDS;
 
     const roomName = `mtg-${crypto.randomUUID().replace(/-/g, "").slice(0, 28)}`;
     const roomRes = await fetch(`${DAILY_API}/rooms`, {

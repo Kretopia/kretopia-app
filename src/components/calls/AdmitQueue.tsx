@@ -1,6 +1,15 @@
 // AdmitQueue — host-only overlay listing knockers waiting at the door.
 // Mounts on top of an active Daily call frame; uses Daily waiting-participant
 // events so we don't poll. Mobile-first slide-up sheet.
+//
+// This is the "waiting" mechanism in the shared StageParticipantState model
+// (src/lib/stageParticipants.ts) -- one of three previously-uncoordinated
+// waiting/speaking mechanisms across SoundStages-adjacent surfaces (see that
+// module's header comment for the other two: Curated Stage's persisted
+// speaker queue, and Open Stage's ephemeral raise-hand). Unlike the other
+// two, this one's state lives entirely inside Daily's SDK (waitingParticipants
+// / updateWaitingParticipant) rather than our own DB or app-messages --
+// admitting a knocker here is the `waiting -> audience` transition.
 import { useEffect, useState } from "react";
 import type { DailyCall } from "@daily-co/daily-js";
 import { Button } from "@/components/ui/button";

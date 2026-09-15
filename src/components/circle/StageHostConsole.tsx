@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, X, Clock, Users, Award, ShieldCheck, BookmarkPlus, CalendarClock } from "lucide-react";
+import { CheckCircle2, X, Clock, Users, Award, ShieldCheck, BookmarkPlus, CalendarClock, Hand } from "lucide-react";
 
 type Outcome = "co_sign" | "credit" | "rolodex" | "followup";
 
@@ -27,15 +27,37 @@ interface Application {
   profile?: { full_name: string | null; avatar_url: string | null; primary_role: string | null } | null;
 }
 
+interface RaisedHand {
+  id: string;
+  user_id: string;
+  created_at: string;
+  profile?: { full_name: string | null; avatar_url: string | null } | null;
+}
+
 /**
  * Host-only console under the stage page. Shows pending + accepted applicants,
  * lets host review (accept/decline), and start/end turns when live.
+ *
+ * Also surfaces curated_stage_raised_hands -- the audience's own "ask to
+ * speak" queue (raise-hand-stage / promote-raised-hand edge functions),
+ * which is a *separate* persisted mechanism from the applications/turns flow
+ * above (an audience member can ask to come up without ever having applied).
+ * Before this, nothing in the client ever read curated_stage_raised_hands or
+ * called promote-raised-hand, so a raised hand here was invisible to the
+ * host and could never be acted on -- see src/lib/stageParticipants.ts for
+ * the full picture of this app's three previously-uncoordinated
+ * waiting/speaking mechanisms. Promoting a raised hand already creates a
+ * curated_stage_turns row server-side (promote-raised-hand/index.ts), so
+ * wiring this section in makes that mechanism consistent with the
+ * applications-driven "Pull up" flow instead of sitting dead.
  */
 export function StageHostConsole({ stage }: { stage: Stage }) {
   const { toast } = useToast();
   const [apps, setApps] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState<string | null>(null);
+  const [raisedHands, setRaisedHands] = useState<RaisedHand[]>([]);
+  const [handActionId, setHandActionId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -68,6 +90,57 @@ export function StageHostConsole({ stage }: { stage: Stage }) {
     return () => { mounted = false; supabase.removeChannel(channel); };
   }, [stage.id]);
 
+  // Only live while the stage is actually live -- mirrors raise-hand-stage's
+  // own "Stage not live" guard, and there's nothing for a host to promote
+  // into before the room exists.
+  useEffect(() => {
+    if (stage.status !== "live") { setRaisedHands([]); return; }
+    let mounted = true;
+    const loadHands = async () => {
+      const { data } = await supabase
+        .from("curated_stage_raised_hands")
+        .select("id,user_id,created_at")
+        .eq("stage_id", stage.id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: true });
+      if (!data || !mounted) return;
+
+      const ids = Array.from(new Set(data.map((d: any) => d.user_id)));
+      const { data: profs } = await supabase.from("profiles")
+        .select("user_id, full_name, avatar_url")
+        .in("user_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
+      const profMap = new Map((profs || []).map((p: any) => [p.user_id, p]));
+      const enriched = data.map((h: any) => ({ ...h, profile: profMap.get(h.user_id) || null }));
+      if (mounted) setRaisedHands(enriched as any);
+    };
+    loadHands();
+
+    const channel = supabase.channel(`stage_hands_${stage.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "curated_stage_raised_hands", filter: `stage_id=eq.${stage.id}` },
+        () => loadHands().catch(() => {}))
+      .subscribe();
+    return () => { mounted = false; supabase.removeChannel(channel); };
+  }, [stage.id, stage.status]);
+
+  const actOnHand = async (handId: string, dismiss: boolean) => {
+    setHandActionId(handId);
+    try {
+      const { error } = await supabase.functions.invoke("promote-raised-hand", {
+        body: dismiss ? { hand_id: handId, dismiss: true } : { hand_id: handId },
+      });
+      if (error) throw error;
+      toast({ title: dismiss ? "Hand dismissed" : "Brought up to speak" });
+      // Optimistic remove -- the postgres_changes subscription above will
+      // also re-sync shortly, this just avoids a visible flash of a
+      // now-stale "pending" row.
+      setRaisedHands((prev) => prev.filter((h) => h.id !== handId));
+    } catch (e: any) {
+      toast({ title: "Couldn't update", description: e?.message, variant: "destructive" });
+    } finally {
+      setHandActionId(null);
+    }
+  };
+
   const review = async (appId: string, decision: "accepted" | "declined" | "waitlist") => {
     setReviewing(appId);
     try {
@@ -95,6 +168,33 @@ export function StageHostConsole({ stage }: { stage: Stage }) {
         </div>
         <Badge variant="outline" className="gap-1"><Users className="h-3 w-3" />{accepted.length} confirmed</Badge>
       </div>
+
+      {raisedHands.length > 0 && (
+        <section className="space-y-2 rounded-lg border border-energy/40 bg-energy/5 p-3">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-energy flex items-center gap-1.5">
+            <Hand className="h-3 w-3" /> Wants to speak · {raisedHands.length}
+          </p>
+          <div className="space-y-2">
+            {raisedHands.map((h) => (
+              <div key={h.id} className="flex items-center gap-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={h.profile?.avatar_url ?? undefined} />
+                  <AvatarFallback className="text-xs">{(h.profile?.full_name ?? "?").slice(0, 1)}</AvatarFallback>
+                </Avatar>
+                <p className="flex-1 text-sm font-semibold truncate">{h.profile?.full_name ?? "Audience member"}</p>
+                <Button size="sm" variant="ghost" disabled={handActionId === h.id}
+                  onClick={() => actOnHand(h.id, true)}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+                <Button size="sm" variant="lime" disabled={handActionId === h.id}
+                  onClick={() => actOnHand(h.id, false)}>
+                  <Clock className="h-3 w-3 mr-1" /> Bring up
+                </Button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {pending.length > 0 && (
         <section className="space-y-2">

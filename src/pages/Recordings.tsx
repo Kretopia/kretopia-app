@@ -66,10 +66,25 @@ export default function Recordings() {
   const load = async () => {
     if (!user?.id) return;
     setLoading(true);
+    // No client-side kind/role filtering here on purpose -- RLS
+    // (public.user_can_view_call_transcript) is the sole authorization
+    // boundary and decides what this query actually returns. For
+    // meeting/event/sound_stage/speed_session/curated_stage rows that means
+    // HOST-ONLY: this page will only ever show a stage/meeting/event
+    // recording to the user who hosted it, by design (see the migration
+    // 20260915100000_document_call_transcript_host_only_visibility.sql for
+    // the full rationale). project/direct/circle rows are additionally
+    // visible to their participants.
     const { data, error } = await supabase
       .from("call_transcripts")
       .select("id, call_kind, status, duration_seconds, created_at, recording_id, project_id, summary")
       .not("recording_id", "is", null)
+      // Exclude recordings purge-expired-recordings has already deleted from
+      // Daily (see _shared/recordingRetention.ts) -- their recording_url is
+      // gone, so "Watch replay" would just fail; the transcript/summary
+      // stays queryable elsewhere, this page is specifically about playable
+      // recordings.
+      .is("recording_deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(100);
     if (error) console.error("[Recordings]", error);
