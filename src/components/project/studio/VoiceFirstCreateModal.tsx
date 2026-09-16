@@ -1218,151 +1218,166 @@ export const VoiceFirstCreateModal = ({
               </div>
             )}
 
-            {/* Workspace type — drives which Studio modules mount */}
-            <div className="rounded-lg border border-border p-3 space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Room type
+            {/* Project details — Room type, Money involved?, Track as
+                credit?, and Target date/Budget used to be four separately
+                floating rounded-lg boxes (three of them boxed, the fourth
+                a bare grid, inconsistently) reading as a stack of
+                unrelated cards. They're all the same kind of thing --
+                settings on the project being created -- so they're one
+                bordered panel now, with internal dividers instead of
+                repeated borders. No handler, state, or condition below
+                changed; only the wrapping structure did. */}
+            <div className="rounded-lg border border-border divide-y divide-border/60">
+              <p className="px-3 pt-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Project details
               </p>
-              <p className="text-xs text-muted-foreground">
-                {WORKSPACE_CONFIGS[workspaceType].description} Tap to change.
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {(Object.keys(WORKSPACE_CONFIGS) as WorkspaceType[]).map((t) => {
-                  const cfg = WORKSPACE_CONFIGS[t];
-                  const Icon = cfg.icon;
-                  const active = workspaceType === t;
-                  return (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setWorkspaceType(t)}
-                      className={cn(
-                        "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border-2 transition-colors",
-                        active
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border text-muted-foreground hover:border-primary/40"
-                      )}
-                    >
-                      <Icon className="h-3 w-3" />
-                      {cfg.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
 
-            {/* Payments involved? gate */}
-            <div className="rounded-lg border border-border p-3 space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Money involved?
-              </p>
-              <p className="text-xs text-muted-foreground">
-                If yes, we'll wire KrePay into the room — quotes, invoices, escrow.
-                If no, we keep it clean.
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setPaymentsInvolved(true); setPaymentsInvolvedInferred(false); }}
-                  className={cn(
-                    "flex-1 px-3 py-2 rounded-md text-sm font-bold border-2 transition-colors",
-                    paymentsInvolved === true
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:border-primary/40"
-                  )}
-                >
-                  Yes — paid work
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setPaymentsInvolved(false); setPaymentsInvolvedInferred(false); }}
-                  className={cn(
-                    "flex-1 px-3 py-2 rounded-md text-sm font-bold border-2 transition-colors",
-                    paymentsInvolved === false
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:border-primary/40"
-                  )}
-                >
-                  No — personal/passion
-                </button>
-              </div>
-              {/* Kreto's own guess from what was said, still fully editable
-                  above -- never a silent decision, just a head start so the
-                  user isn't asked to repeat something they already told
-                  Kreto in their own words. */}
-              {paymentsInvolvedInferred && paymentsInvolved !== null && (
-                <p className="text-[11px] flex items-center gap-1" style={{ color: "hsl(var(--energy))" }}>
-                  <Sparkles className="h-3 w-3 shrink-0" aria-hidden />
-                  Kreto's guess from what you said — tap the other option to change it.
+              {/* Workspace type — drives which Studio modules mount */}
+              <div className="p-3 space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Room type
                 </p>
-              )}
-            </div>
+                <p className="text-xs text-muted-foreground">
+                  {WORKSPACE_CONFIGS[workspaceType].description} Tap to change.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(Object.keys(WORKSPACE_CONFIGS) as WorkspaceType[]).map((t) => {
+                    const cfg = WORKSPACE_CONFIGS[t];
+                    const Icon = cfg.icon;
+                    const active = workspaceType === t;
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setWorkspaceType(t)}
+                        className={cn(
+                          "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border-2 transition-colors",
+                          active
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:border-primary/40"
+                        )}
+                      >
+                        <Icon className="h-3 w-3" />
+                        {cfg.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-            {/* Track as credit — opt-in */}
-            <div className="rounded-lg border border-border p-3 space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Track as a credit?
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Turn on if this work is shareable — collaborators can be tagged
-                and the project flows into your Stamps when finished. Leave off
-                for private planning or personal notes.
-              </p>
-              <label className="flex items-center gap-2 cursor-pointer pt-1">
-                <input
-                  type="checkbox"
-                  checked={trackAsCredit}
-                  onChange={(e) => setTrackAsCredit(e.target.checked)}
-                  className="h-4 w-4 accent-primary"
-                />
-                <span className="text-sm font-medium">
-                  Yes — this is shareable work
-                </span>
-              </label>
-            </div>
-
-            {/* Target date + budget — optional, both real project fields */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Target date
-                </label>
-                <input
-                  type="date"
-                  value={deadline}
-                  onChange={(e) => { setDeadline(e.target.value); setDeadlineInferred(false); }}
-                  className="w-full rounded-md border border-border bg-background px-2.5 py-2 text-sm"
-                />
-                {/* Latest due date across Kreto's own extracted deliverables,
-                    still fully editable above -- not a decision, just a
-                    head start from data already sitting in the brief. */}
-                {deadlineInferred && deadline && (
+              {/* Payments involved? gate */}
+              <div className="p-3 space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Money involved?
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  If yes, we'll wire KrePay into the room — quotes, invoices, escrow.
+                  If no, we keep it clean.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setPaymentsInvolved(true); setPaymentsInvolvedInferred(false); }}
+                    className={cn(
+                      "flex-1 px-3 py-2 rounded-md text-sm font-bold border-2 transition-colors",
+                      paymentsInvolved === true
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:border-primary/40"
+                    )}
+                  >
+                    Yes — paid work
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPaymentsInvolved(false); setPaymentsInvolvedInferred(false); }}
+                    className={cn(
+                      "flex-1 px-3 py-2 rounded-md text-sm font-bold border-2 transition-colors",
+                      paymentsInvolved === false
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:border-primary/40"
+                    )}
+                  >
+                    No — personal/passion
+                  </button>
+                </div>
+                {/* Kreto's own guess from what was said, still fully editable
+                    above -- never a silent decision, just a head start so the
+                    user isn't asked to repeat something they already told
+                    Kreto in their own words. */}
+                {paymentsInvolvedInferred && paymentsInvolved !== null && (
                   <p className="text-[11px] flex items-center gap-1" style={{ color: "hsl(var(--energy))" }}>
                     <Sparkles className="h-3 w-3 shrink-0" aria-hidden />
-                    From the latest starter task's due date.
+                    Kreto's guess from what you said — tap the other option to change it.
                   </p>
                 )}
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Budget (optional)
+
+              {/* Track as credit — opt-in */}
+              <div className="p-3 space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Track as a credit?
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Turn on if this work is shareable — collaborators can be tagged
+                  and the project flows into your Stamps when finished. Leave off
+                  for private planning or personal notes.
+                </p>
+                <label className="flex items-center gap-2 cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={trackAsCredit}
+                    onChange={(e) => setTrackAsCredit(e.target.checked)}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  <span className="text-sm font-medium">
+                    Yes — this is shareable work
+                  </span>
                 </label>
-                <input
-                  type="text"
-                  value={budget}
-                  onChange={(e) => { setBudget(e.target.value); setBudgetInferred(false); }}
-                  placeholder="e.g. $2,000"
-                  className="w-full rounded-md border border-border bg-background px-2.5 py-2 text-sm"
-                />
-                {/* A `$`-prefixed amount Kreto spotted in what was said,
-                    still fully editable above -- same pattern as the
-                    Target date and Money involved? guesses. */}
-                {budgetInferred && budget && (
-                  <p className="text-[11px] flex items-center gap-1" style={{ color: "hsl(var(--energy))" }}>
-                    <Sparkles className="h-3 w-3 shrink-0" aria-hidden />
-                    Kreto's guess from what you said.
-                  </p>
-                )}
+              </div>
+
+              {/* Target date + budget — optional, both real project fields */}
+              <div className="p-3 grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Target date
+                  </label>
+                  <input
+                    type="date"
+                    value={deadline}
+                    onChange={(e) => { setDeadline(e.target.value); setDeadlineInferred(false); }}
+                    className="w-full rounded-md border border-border bg-background px-2.5 py-2 text-sm"
+                  />
+                  {/* Latest due date across Kreto's own extracted deliverables,
+                      still fully editable above -- not a decision, just a
+                      head start from data already sitting in the brief. */}
+                  {deadlineInferred && deadline && (
+                    <p className="text-[11px] flex items-center gap-1" style={{ color: "hsl(var(--energy))" }}>
+                      <Sparkles className="h-3 w-3 shrink-0" aria-hidden />
+                      From the latest starter task's due date.
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Budget (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={budget}
+                    onChange={(e) => { setBudget(e.target.value); setBudgetInferred(false); }}
+                    placeholder="e.g. $2,000"
+                    className="w-full rounded-md border border-border bg-background px-2.5 py-2 text-sm"
+                  />
+                  {/* A `$`-prefixed amount Kreto spotted in what was said,
+                      still fully editable above -- same pattern as the
+                      Target date and Money involved? guesses. */}
+                  {budgetInferred && budget && (
+                    <p className="text-[11px] flex items-center gap-1" style={{ color: "hsl(var(--energy))" }}>
+                      <Sparkles className="h-3 w-3 shrink-0" aria-hidden />
+                      Kreto's guess from what you said.
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
