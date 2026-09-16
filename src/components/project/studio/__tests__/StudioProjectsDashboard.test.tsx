@@ -1,7 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { StudioProjectsDashboard } from "../StudioProjectsDashboard";
+
+// Only useNavigate is overridden (to capture its call args) -- everything
+// else, including MemoryRouter and real route matching, is untouched.
+const mocks = vi.hoisted(() => ({ navigate: vi.fn() }));
+vi.mock("react-router-dom", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-router-dom")>();
+  return { ...actual, useNavigate: () => mocks.navigate };
+});
 
 const projects = [
   { id: "a", title: "Carnival Film", status: "active", updated_at: new Date().toISOString(), client_name: "Spice House" },
@@ -85,5 +93,101 @@ describe("StudioProjectsDashboard", () => {
     expect(screen.getByText(/Loading your Projects/)).toBeInTheDocument();
     renderDash({ error: "network down" });
     expect(screen.getByRole("alert")).toHaveTextContent("network down");
+  });
+
+  it("navigates to the Project on row click, using its real id", () => {
+    renderDash();
+    fireEvent.click(screen.getByText("Carnival Film"));
+    expect(mocks.navigate).toHaveBeenCalledWith("/desk/a");
+  });
+});
+
+describe("StudioProjectsDashboard scalability (default subset + expand/collapse)", () => {
+  afterEach(() => {
+    mocks.navigate.mockClear();
+    // Restore jsdom's default viewport between tests.
+    Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: 1024 });
+  });
+
+  const manyProjects = (count: number) =>
+    Array.from({ length: count }, (_, i) => ({
+      id: `p${i}`,
+      title: `Project ${i}`,
+      status: i === 0 ? "completed" : "active", // p0 is the one money-actionable row
+      updated_at: new Date(2026, 0, i + 1).toISOString(),
+      client_name: null,
+    }));
+
+  it("caps the default list to defaultVisibleProjectCount for the current viewport, not every matching row", () => {
+    Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: 1024 });
+    const list = manyProjects(9);
+    render(
+      <MemoryRouter>
+        <StudioProjectsDashboard
+          projects={list as any}
+          invoicesByProject={{ p0: "unsent" }}
+          onCreate={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+    // Desktop default is 6 -- summary line and rendered rows must agree.
+    expect(screen.getByText("6 of 9 shown")).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem").length).toBe(6);
+  });
+
+  it("shows a narrower default subset on a mobile-width viewport", () => {
+    Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: 375 });
+    const list = manyProjects(9);
+    render(
+      <MemoryRouter>
+        <StudioProjectsDashboard projects={list as any} onCreate={vi.fn()} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("3 of 9 shown")).toBeInTheDocument();
+  });
+
+  it("prioritizes the money-actionable project into the default subset even when it's the oldest row", () => {
+    // p0 is "completed" + unsent invoice (tier 0, needs an invoice) but has
+    // the OLDEST updated_at of the set -- a plain recency sort would push
+    // it past the default cap of 6 out of 9; real prioritization must not.
+    const list = manyProjects(9);
+    render(
+      <MemoryRouter>
+        <StudioProjectsDashboard
+          projects={list as any}
+          invoicesByProject={{ p0: "unsent" }}
+          onCreate={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("Project 0")).toBeInTheDocument();
+  });
+
+  it("shows 'See all N projects' only when rows are actually hidden, not for a short list", () => {
+    render(
+      <MemoryRouter>
+        <StudioProjectsDashboard projects={projects as any} onCreate={vi.fn()} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText(/See all/)).not.toBeInTheDocument();
+  });
+
+  it("expand reveals every row and collapse (Show fewer) returns to the default subset", () => {
+    const list = manyProjects(9);
+    render(
+      <MemoryRouter>
+        <StudioProjectsDashboard projects={list as any} onCreate={vi.fn()} />
+      </MemoryRouter>,
+    );
+    const toggle = screen.getByRole("button", { name: "See all 9 projects" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(toggle);
+    expect(screen.getAllByRole("listitem").length).toBe(9);
+    const collapse = screen.getByRole("button", { name: "Show fewer" });
+    expect(collapse).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(collapse);
+    expect(screen.getAllByRole("listitem").length).toBe(6);
   });
 });

@@ -1,19 +1,22 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
-  Search, ChevronRight, Loader2, AlertTriangle, FolderInput, Plus,
+  Search, ChevronRight, AlertTriangle, FolderInput, Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CtaButton } from "@/components/ui/cta-button";
+import { BrandLoader } from "@/components/brand/BrandDots";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { moodAccent, monogram, STATUS_PILL, PAY_DOT, PAY_LABEL, type StudioProject } from "./studioCardHelpers";
 import { MoveToFolderSheet } from "./MoveToFolderSheet";
-import type { StudioFolder } from "./StudioFoldersBar";
+import { StudioOverflowToggle } from "./StudioOverflowToggle";
+import { prioritizeProjects, defaultVisibleProjectCount } from "./studioHome.selectors";
+import type { StudioFolder } from "./studioHome.types";
 
 type PayState = "paid" | "invoiced" | "unsent";
 type StatusFilter = "all" | "active" | "needs_invoice" | "awaiting_payment" | "delivered";
@@ -67,6 +70,13 @@ export const StudioProjectsDashboard = ({
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [sort, setSort] = useState<SortKey>("recent");
   const [moveTarget, setMoveTarget] = useState<StudioProject | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window === "undefined" ? 1024 : window.innerWidth));
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const pay = (id: string): PayState => invoicesByProject[id] ?? "unsent";
   // Per-project gate: prefer the role-checked map when the caller opted
@@ -99,17 +109,27 @@ export const StudioProjectsDashboard = ({
         default: return true;
       }
     });
-    list = [...list].sort((a, b) => {
-      if (sort === "title") return a.title.localeCompare(b.title);
-      if (sort === "status") {
+    if (sort === "title") {
+      list = [...list].sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sort === "status") {
+      list = [...list].sort((a, b) => {
         const d = (STATUS_RANK[a.status ?? "active"] ?? 1) - (STATUS_RANK[b.status ?? "active"] ?? 1);
-        if (d !== 0) return d;
-      }
-      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-    });
+        return d !== 0 ? d : new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      });
+    } else {
+      // "recent" -- the default -- is real prioritization, not just
+      // most-recently-updated: money-actionable and in-progress work
+      // outranks delivered/archived, centralized in studioHome.selectors
+      // so this ordering isn't duplicated anywhere else on Studio home.
+      list = prioritizeProjects(list, invoicesByProject, moneyVisibleByProject);
+    }
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projects, invoicesByProject, query, filter, sort]);
+  }, [projects, invoicesByProject, moneyVisibleByProject, query, filter, sort]);
+
+  const visibleCount = expanded ? rows.length : Math.min(rows.length, defaultVisibleProjectCount(viewportWidth));
+  const visibleRows = rows.slice(0, visibleCount);
+  const hiddenRowCount = rows.length - visibleRows.length;
 
   /** Next action — derived only from status + invoice state, both real fields. */
   const nextAction = (p: StudioProject) => {
@@ -135,7 +155,7 @@ export const StudioProjectsDashboard = ({
   if (loading) {
     return (
       <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-        <Loader2 className="mx-auto mb-2 h-4 w-4 animate-spin" aria-hidden />
+        <BrandLoader fullscreen={false} size="sm" className="mx-auto mb-2" />
         Loading your Projects…
       </div>
     );
@@ -177,7 +197,7 @@ export const StudioProjectsDashboard = ({
       <div className="flex items-end justify-between gap-3">
         <h2 id="studio-projects-title" className="text-base font-bold">Projects</h2>
         <span className="text-xs text-muted-foreground">
-          {rows.length} of {projects.length} shown
+          {visibleRows.length} of {projects.length} shown
         </span>
       </div>
 
@@ -230,7 +250,11 @@ export const StudioProjectsDashboard = ({
         </Select>
       </div>
 
-      {/* Priority list */}
+      {/* Priority list -- capped to a curated top slice by default
+          (defaultVisibleProjectCount, viewport-aware) rather than every
+          matching row; "See N more" reveals the rest without a second
+          fetch, since `rows` already holds the full prioritized/filtered
+          set in memory. */}
       {rows.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
           No Projects match this view.{" "}
@@ -243,8 +267,8 @@ export const StudioProjectsDashboard = ({
           </button>
         </div>
       ) : (
-        <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-          {rows.map((p) => {
+        <ul id="studio-projects-list" className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+          {visibleRows.map((p) => {
             const pill = STATUS_PILL[p.status ?? "active"] ?? STATUS_PILL.planning;
             const state = pay(p.id);
             return (
@@ -299,6 +323,19 @@ export const StudioProjectsDashboard = ({
             );
           })}
         </ul>
+      )}
+
+      {(hiddenRowCount > 0 || expanded) && rows.length > 0 && (
+        <div className="flex justify-center">
+          <StudioOverflowToggle
+            expanded={expanded}
+            onToggle={() => setExpanded((v) => !v)}
+            itemLabel="project"
+            expandLabel={expanded ? undefined : `See all ${rows.length} projects`}
+            collapseLabel="Show fewer"
+            controlsId="studio-projects-list"
+          />
+        </div>
       )}
 
       {onMoveToFolder && (

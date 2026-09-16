@@ -18,6 +18,11 @@ export type SoundStage = {
 
 interface Props {
   onJoin: (stage: SoundStage) => void;
+  /** Reports the live-stage count once known -- mirrors CuratedStagesRail's
+   *  own onLoad, for callers that need to know whether this rail has
+   *  anything to show without duplicating its fetch. Optional, additive:
+   *  no existing caller passes it, behavior is unchanged for them. */
+  onLoad?: (count: number) => void;
 }
 
 type HostProfile = { full_name: string | null; avatar_url: string | null; username: string | null };
@@ -26,7 +31,7 @@ type HostProfile = { full_name: string | null; avatar_url: string | null; userna
  * Electric signature rail of live Open Stages ("On Air now").
  * First card pops as the Headliner (magenta border + pulse halo).
  */
-export function SoundStagesRail({ onJoin }: Props) {
+export function SoundStagesRail({ onJoin, onLoad }: Props) {
   const [stages, setStages] = useState<SoundStage[]>([]);
   const [hosts, setHosts] = useState<Record<string, HostProfile>>({});
   const [loading, setLoading] = useState(true);
@@ -43,6 +48,7 @@ export function SoundStagesRail({ onJoin }: Props) {
     const rows = (data ?? []) as SoundStage[];
     setStages(rows);
     setLoading(false);
+    onLoad?.(rows.length);
 
     const ids = Array.from(new Set(rows.map((r) => r.host_user_id))).filter(Boolean);
     if (ids.length) {
