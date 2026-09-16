@@ -25,6 +25,7 @@ import { WORKSPACE_CONFIGS, type WorkspaceType } from "@/lib/workspaceConfigs";
 import { compressImage } from "@/lib/extractBriefDocument";
 import { inferWorkspaceType } from "@/lib/inferWorkspaceType";
 import { inferPaymentsInvolved } from "@/lib/inferPaymentsInvolved";
+import { deriveTargetDateFromDeliverables } from "@/lib/deriveTargetDateFromDeliverables";
 import { getNewRoomCautionReasons } from "@/lib/newRoomCaution";
 import { analytics } from "@/lib/analytics";
 
@@ -145,6 +146,11 @@ export const VoiceFirstCreateModal = ({
   const [workspaceType, setWorkspaceType] = useState<WorkspaceType>("general");
   const [rawInput, setRawInput] = useState<string>("");
   const [deadline, setDeadline] = useState<string>("");
+  // Tracks whether the current deadline value is derived from the
+  // extracted deliverables' own due dates (deriveTargetDateFromDeliverables)
+  // versus the user's own manual pick -- same purpose as
+  // paymentsInvolvedInferred, purely for the review screen's helper copy.
+  const [deadlineInferred, setDeadlineInferred] = useState(false);
   const [budget, setBudget] = useState<string>("");
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
@@ -184,6 +190,18 @@ export const VoiceFirstCreateModal = ({
     }
   };
 
+  /** Applies deriveTargetDateFromDeliverables' result, if any, and marks it
+   *  as derived for the review screen's helper copy. No real due date across
+   *  the extracted deliverables leaves Target date genuinely unset, same as
+   *  before this existed. */
+  const applyDerivedDeadline = (deliverables: ExtractedBrief["deliverables"]) => {
+    const derived = deriveTargetDateFromDeliverables(deliverables);
+    if (derived !== null) {
+      setDeadline(derived);
+      setDeadlineInferred(true);
+    }
+  };
+
   // A review-step draft (title/summary/type/deadline/budget/payments/credit)
   // survives a refresh or an accidental close — nothing here is saved to the
   // DB until "Create". Recording audio itself is NOT persisted (can't
@@ -212,6 +230,7 @@ export const VoiceFirstCreateModal = ({
       setWorkspaceType("general");
       setRawInput("");
       setDeadline("");
+      setDeadlineInferred(false);
       setBudget("");
       setShowLinkInput(false);
       setLinkUrl("");
@@ -385,6 +404,7 @@ export const VoiceFirstCreateModal = ({
         setWorkspaceType(inferWorkspaceType(`${result.project.title} ${result.project.summary}`));
       }
       applyInferredPayments(`${result.project.title} ${result.project.summary}`);
+      applyDerivedDeadline(result.deliverables);
       analytics.newRoomDraftReady(workspaceType, (result.deliverables ?? []).length);
       setMode("review");
     } catch (err: any) {
@@ -426,6 +446,7 @@ export const VoiceFirstCreateModal = ({
       setBrief(finalBrief);
       setSelected(new Set((finalBrief.deliverables ?? []).slice(0, 8).map((_, i) => i)));
       applyInferredPayments(`${trimmed} ${finalBrief.project.summary}`);
+      applyDerivedDeadline(finalBrief.deliverables);
       analytics.newRoomDraftReady(typeForCall, (finalBrief.deliverables ?? []).length);
       setMode("review");
     } catch (err: any) {
@@ -492,6 +513,7 @@ export const VoiceFirstCreateModal = ({
         setWorkspaceType(inferWorkspaceType(`${result.project.title} ${result.project.summary}`));
       }
       applyInferredPayments(`${result.project.title} ${result.project.summary}`);
+      applyDerivedDeadline(result.deliverables);
       analytics.newRoomDraftReady(workspaceType, (result.deliverables ?? []).length);
       setMode("review");
     } catch (err: any) {
@@ -533,6 +555,7 @@ export const VoiceFirstCreateModal = ({
       setBrief(result);
       setSelected(new Set((result.deliverables ?? []).slice(0, 8).map((_, i) => i)));
       applyInferredPayments(`${result.project.title} ${result.project.summary}`);
+      applyDerivedDeadline(result.deliverables);
       analytics.newRoomDraftReady(workspaceType, (result.deliverables ?? []).length);
       setMode("review");
     } catch (err: any) {
@@ -1286,9 +1309,18 @@ export const VoiceFirstCreateModal = ({
                 <input
                   type="date"
                   value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
+                  onChange={(e) => { setDeadline(e.target.value); setDeadlineInferred(false); }}
                   className="w-full rounded-md border border-border bg-background px-2.5 py-2 text-sm"
                 />
+                {/* Latest due date across Kreto's own extracted deliverables,
+                    still fully editable above -- not a decision, just a
+                    head start from data already sitting in the brief. */}
+                {deadlineInferred && deadline && (
+                  <p className="text-[11px] flex items-center gap-1" style={{ color: "hsl(var(--energy))" }}>
+                    <Sparkles className="h-3 w-3 shrink-0" aria-hidden />
+                    From the latest starter task's due date.
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1319,6 +1351,8 @@ export const VoiceFirstCreateModal = ({
               setSelected(new Set());
               setPaymentsInvolved(null);
               setPaymentsInvolvedInferred(false);
+              setDeadline("");
+              setDeadlineInferred(false);
               setMode("prompt");
               clearDraft();
             }}
