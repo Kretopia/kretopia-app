@@ -16,7 +16,16 @@ interface NewRoomLaunchScreenProps {
   onOpenRoom: () => void;
 }
 
-const ACCENT = "#FF2DA1";
+// Real semantic token, not a hardcoded hex -- this used to be a literal
+// "#FF2DA1" that matched --energy's default value by coincidence, but
+// silently diverged from it under the app's alternate "neon" vibe theme
+// (data-vibe="neon" .dark sets --energy to a lime/yellow, not pink), so
+// this screen would stay pink while every other themed surface correctly
+// switched. `hsl(var(--energy))` as a literal string still resolves
+// correctly when handed to react-dom-confetti's own inline-style color
+// assignment, same as passing it to any other DOM style property.
+const ACCENT = "hsl(var(--energy))";
+const accentAlpha = (alpha: number) => `hsl(var(--energy) / ${alpha})`;
 
 const confettiConfig = {
   angle: 90,
@@ -28,6 +37,9 @@ const confettiConfig = {
   stagger: 2,
   width: "10px",
   height: "10px",
+  // The two decorative secondary shades stay literal -- confetti variety
+  // colors, not a themed UI surface, and there's no existing "lighter/
+  // darker energy" token to derive them from without inventing one.
   colors: [ACCENT, "#ffffff", "#ff8ac9", "#B0083F"],
 };
 
@@ -78,13 +90,13 @@ export function NewRoomLaunchScreen({
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0"
-            style={{ background: "radial-gradient(65% 60% at 50% 0%, rgba(255,45,161,0.18), transparent 65%)" }}
+            style={{ background: `radial-gradient(65% 60% at 50% 0%, ${accentAlpha(0.18)}, transparent 65%)` }}
           />
 
           <div className="relative">
             <p
               className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.25em] mb-4 px-2.5 py-1 rounded-full border mx-auto w-fit"
-              style={{ borderColor: "rgba(255,45,161,0.3)", backgroundColor: "rgba(255,45,161,0.06)", color: ACCENT }}
+              style={{ borderColor: accentAlpha(0.3), backgroundColor: accentAlpha(0.06), color: ACCENT }}
             >
               <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ backgroundColor: ACCENT }} />
               Your room is live
@@ -103,7 +115,7 @@ export function NewRoomLaunchScreen({
             {taskCount > 0 && (
               <div
                 className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-semibold"
-                style={{ borderColor: "rgba(255,45,161,0.25)", backgroundColor: "rgba(255,45,161,0.06)", color: "hsl(var(--foreground))" }}
+                style={{ borderColor: accentAlpha(0.25), backgroundColor: accentAlpha(0.06), color: "hsl(var(--foreground))" }}
               >
                 <Check className="h-3 w-3" style={{ color: ACCENT }} />
                 {taskCount} starter task{taskCount === 1 ? "" : "s"} seeded
