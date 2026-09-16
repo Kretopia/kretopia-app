@@ -24,13 +24,15 @@ import { cn } from "@/lib/utils";
 import { WORKSPACE_CONFIGS, type WorkspaceType } from "@/lib/workspaceConfigs";
 import { compressImage } from "@/lib/extractBriefDocument";
 import { inferWorkspaceType } from "@/lib/inferWorkspaceType";
+import { inferPaymentsInvolved } from "@/lib/inferPaymentsInvolved";
 import { getNewRoomCautionReasons } from "@/lib/newRoomCaution";
 import { analytics } from "@/lib/analytics";
 
 
-/** Real example prompts per workspace type — the same examples already used
- * as placeholder text, promoted to visible, tappable chips so they teach by
- * example instead of disappearing the moment someone starts typing. */
+/** Real example prompts per workspace type, shown only as composer
+ * placeholder text. A tappable-chip version of these existed once and was
+ * removed entirely per direct request (see git history) -- keep it that
+ * way; don't reintroduce visible starter chips here. */
 const EXAMPLE_PROMPTS: Record<WorkspaceType, string> = {
   event_production: "Bali Carnival — 2-day beach festival, Aug 2026, 5k guests, 3 stages.",
   music_project: "Debut EP — 5 tracks, summer release, lo-fi beats with vocal features.",
@@ -132,6 +134,13 @@ export const VoiceFirstCreateModal = ({
   const [brief, setBrief] = useState<ExtractedBrief | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [paymentsInvolved, setPaymentsInvolved] = useState<boolean | null>(null);
+  // Tracks whether the current paymentsInvolved value is Kreto's own
+  // keyword-inferred guess (inferPaymentsInvolved) versus the user's own
+  // explicit tap -- purely for the review screen's "Kreto's guess" helper
+  // copy. Never affects what gets saved: the field itself stays exactly as
+  // visible and editable either way, so an unconfirmed guess is never
+  // silently treated as approval.
+  const [paymentsInvolvedInferred, setPaymentsInvolvedInferred] = useState(false);
   const [trackAsCredit, setTrackAsCredit] = useState<boolean>(false);
   const [workspaceType, setWorkspaceType] = useState<WorkspaceType>("general");
   const [rawInput, setRawInput] = useState<string>("");
@@ -163,6 +172,18 @@ export const VoiceFirstCreateModal = ({
   const tickRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  /** Applies inferPaymentsInvolved's result, if any, and marks it as a
+   *  guess for the review screen's helper copy. A null inference (no real
+   *  signal in what was said) leaves the field genuinely unset, same as
+   *  before this existed. */
+  const applyInferredPayments = (text: string) => {
+    const guess = inferPaymentsInvolved(text);
+    if (guess !== null) {
+      setPaymentsInvolved(guess);
+      setPaymentsInvolvedInferred(true);
+    }
+  };
+
   // A review-step draft (title/summary/type/deadline/budget/payments/credit)
   // survives a refresh or an accidental close — nothing here is saved to the
   // DB until "Create". Recording audio itself is NOT persisted (can't
@@ -186,6 +207,7 @@ export const VoiceFirstCreateModal = ({
       setSelected(new Set());
       setCreating(false);
       setPaymentsInvolved(null);
+      setPaymentsInvolvedInferred(false);
       setTrackAsCredit(false);
       setWorkspaceType("general");
       setRawInput("");
@@ -362,6 +384,7 @@ export const VoiceFirstCreateModal = ({
       if (workspaceType === "general") {
         setWorkspaceType(inferWorkspaceType(`${result.project.title} ${result.project.summary}`));
       }
+      applyInferredPayments(`${result.project.title} ${result.project.summary}`);
       analytics.newRoomDraftReady(workspaceType, (result.deliverables ?? []).length);
       setMode("review");
     } catch (err: any) {
@@ -402,6 +425,7 @@ export const VoiceFirstCreateModal = ({
         : result;
       setBrief(finalBrief);
       setSelected(new Set((finalBrief.deliverables ?? []).slice(0, 8).map((_, i) => i)));
+      applyInferredPayments(`${trimmed} ${finalBrief.project.summary}`);
       analytics.newRoomDraftReady(typeForCall, (finalBrief.deliverables ?? []).length);
       setMode("review");
     } catch (err: any) {
@@ -419,6 +443,7 @@ export const VoiceFirstCreateModal = ({
         },
       });
       setSelected(new Set());
+      applyInferredPayments(trimmed);
       setDraftDegraded(true);
       setMode("review");
     }
@@ -466,6 +491,7 @@ export const VoiceFirstCreateModal = ({
       if (workspaceType === "general") {
         setWorkspaceType(inferWorkspaceType(`${result.project.title} ${result.project.summary}`));
       }
+      applyInferredPayments(`${result.project.title} ${result.project.summary}`);
       analytics.newRoomDraftReady(workspaceType, (result.deliverables ?? []).length);
       setMode("review");
     } catch (err: any) {
@@ -506,6 +532,7 @@ export const VoiceFirstCreateModal = ({
       if (!result?.project?.title) throw new Error("Couldn't read that sheet");
       setBrief(result);
       setSelected(new Set((result.deliverables ?? []).slice(0, 8).map((_, i) => i)));
+      applyInferredPayments(`${result.project.title} ${result.project.summary}`);
       analytics.newRoomDraftReady(workspaceType, (result.deliverables ?? []).length);
       setMode("review");
     } catch (err: any) {
@@ -1192,7 +1219,7 @@ export const VoiceFirstCreateModal = ({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setPaymentsInvolved(true)}
+                  onClick={() => { setPaymentsInvolved(true); setPaymentsInvolvedInferred(false); }}
                   className={cn(
                     "flex-1 px-3 py-2 rounded-md text-sm font-bold border-2 transition-colors",
                     paymentsInvolved === true
@@ -1204,7 +1231,7 @@ export const VoiceFirstCreateModal = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPaymentsInvolved(false)}
+                  onClick={() => { setPaymentsInvolved(false); setPaymentsInvolvedInferred(false); }}
                   className={cn(
                     "flex-1 px-3 py-2 rounded-md text-sm font-bold border-2 transition-colors",
                     paymentsInvolved === false
@@ -1215,6 +1242,16 @@ export const VoiceFirstCreateModal = ({
                   No — personal/passion
                 </button>
               </div>
+              {/* Kreto's own guess from what was said, still fully editable
+                  above -- never a silent decision, just a head start so the
+                  user isn't asked to repeat something they already told
+                  Kreto in their own words. */}
+              {paymentsInvolvedInferred && paymentsInvolved !== null && (
+                <p className="text-[11px] flex items-center gap-1" style={{ color: "hsl(var(--energy))" }}>
+                  <Sparkles className="h-3 w-3 shrink-0" aria-hidden />
+                  Kreto's guess from what you said — tap the other option to change it.
+                </p>
+              )}
             </div>
 
             {/* Track as credit — opt-in */}
@@ -1280,6 +1317,8 @@ export const VoiceFirstCreateModal = ({
               analytics.newRoomDraftCancelled();
               setBrief(null);
               setSelected(new Set());
+              setPaymentsInvolved(null);
+              setPaymentsInvolvedInferred(false);
               setMode("prompt");
               clearDraft();
             }}
