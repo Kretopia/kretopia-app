@@ -53,20 +53,14 @@ import { StudioCardsGrid } from "@/components/project/studio/StudioCardsGrid";
 import { StudioProjectsDashboard } from "@/components/project/studio/StudioProjectsDashboard";
 import { StudioCreateHero } from "@/components/project/studio/StudioCreateHero";
 import { StudioFoldersBar, type StudioFolder } from "@/components/project/studio/StudioFoldersBar";
-import { toast } from "sonner";
+import { StudioPulse } from "@/components/project/studio/StudioPulse";
+import { computeFolderCounts } from "@/components/project/studio/studioHome.selectors";
 import { TodayStrip } from "@/components/desk/TodayStrip";
+import { toast } from "sonner";
 import { DeskCommandPalette } from "@/components/desk/DeskCommandPalette";
 import { VoiceCommandSheet } from "@/components/desk/VoiceCommandSheet";
 import { WrapMyWeekSheet } from "@/components/desk/WrapMyWeekSheet";
-import { MyPendingInvitations } from "@/components/project/MyPendingInvitations";
 import { PageTransition } from "@/components/PageTransition";
-import { SectionCard } from "@/components/ui/section-card";
-import { SoundStagesRail } from "@/components/circle/SoundStagesRail";
-import { SpeedTonightCard } from "@/components/home/SpeedTonightCard";
-import { CastingCallsRail } from "@/components/opportunity/CastingCallsRail";
-import { RecentRecordingsRail } from "@/components/calls/RecentRecordingsRail";
-import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext, type CarouselApi } from "@/components/ui/carousel";
-import { CarouselPositionDots } from "@/components/ui/glass/CarouselPositionDots";
 import { FeaturePageHeader } from "@/components/features/FeaturePageHeader";
 import { KretoTip } from "@/components/agent/KretoTip";
 import { STUDIO_TUTORIAL, STUDIO_BRAND_TUTORIAL } from "@/components/landing/kretopia/tutorialContent";
@@ -378,16 +372,6 @@ const CreatorWorkHome = () => {
   const [recentCollaborators, setRecentCollaborators] = useState<
     { id: string; full_name: string; avatar_url: string | null; role: string | null }[]
   >([]);
-  const [collabApi, setCollabApi] = useState<CarouselApi>();
-  const [reducedMotion, setReducedMotion] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReducedMotion(mq.matches);
-    const onChange = () => setReducedMotion(mq.matches);
-    mq.addEventListener?.("change", onChange);
-    return () => mq.removeEventListener?.("change", onChange);
-  }, []);
-
   const fetchFolders = async () => {
     if (!user) return;
     const { data } = await supabase
@@ -514,14 +498,7 @@ const CreatorWorkHome = () => {
   const activeProjects = projects.filter(p => p.status === "active");
   const completedProjects = projects.filter(p => p.status === "completed" || p.status === "archived");
 
-  const folderCounts = (() => {
-    const counts: Record<string, number> = { unfiled: 0 };
-    for (const p of projects) {
-      const key = (p as any).studio_folder_id || "unfiled";
-      counts[key] = (counts[key] ?? 0) + 1;
-    }
-    return counts;
-  })();
+  const folderCounts = computeFolderCounts(projects);
 
   const visibleProjects = projects.filter((p) => {
     if (folderFilter === "all") return true;
@@ -558,6 +535,17 @@ const CreatorWorkHome = () => {
           activeCount={activeProjects.length}
         />
 
+        {/* What's happening now, who's involved, what needs attention --
+            immediately below the header/create hero, above Folders and
+            Projects, per the Studio home overhaul. Replaces the previous
+            separately-stacked "Session & Activity" and "Casting &
+            Collaborators" SectionCards. */}
+        <StudioPulse
+          recentCollaborators={recentCollaborators}
+          onVoice={() => setVoiceCmdOpen(true)}
+          onCommandPalette={() => setPaletteOpen(true)}
+          onWrapWeek={() => setWrapWeekOpen(true)}
+        />
 
         {(() => {
           const moveProject = async (projectId: string, folderId: string | null) => {
@@ -658,85 +646,7 @@ const CreatorWorkHome = () => {
             </>
           );
         })()}
-
-        {/* Session & Activity — control-room block. Live Sound Stages,
-            tonight's speed session, today's plan, and pending invites used
-            to be four independent stacked sections; same components, same
-            data, one shared surface. Each inner piece keeps its own real
-            data-fetching and self-hiding-when-empty behavior untouched. */}
-        <SectionCard title="Session & Activity">
-          <div>
-            <h3 className="text-sm font-semibold mb-2">Live &amp; upcoming</h3>
-            {/* Real Sound Stages data (own loading/empty states, realtime-
-                subscribed), reused as-is from Circle rather than rebuilt
-                here. Joining sends you to the real room-joining flow at
-                /soundstages instead of a second, duplicate implementation
-                of the Daily.co join/render logic. */}
-            <SoundStagesRail onJoin={() => navigate("/soundstages")} />
-          </div>
-          <SpeedTonightCard />
-          <TodayStrip
-            onVoice={() => setVoiceCmdOpen(true)}
-            onCommandPalette={() => setPaletteOpen(true)}
-            onWrapWeek={() => setWrapWeekOpen(true)}
-          />
-          <MyPendingInvitations />
-        </SectionCard>
-
-        {/* Casting & Collaborators — control-room block. Open casting
-            calls, recent recordings, and the people you've worked with
-            most recently used to be three independent stacked sections. */}
-        <SectionCard title="Casting & Collaborators">
-          <div>
-            <h3 className="text-sm font-semibold mb-2">Casting calls</h3>
-            {/* Real open opportunities of type "casting". Reuses
-                GigRailCard as-is (same card used in OpportunitiesFeed's
-                grid) rather than a new card design. */}
-            <CastingCallsRail />
-          </div>
-          <RecentRecordingsRail />
-          {/* Recent collaborators — real people from the user's most
-              recently active projects, via the same get_project_people RPC
-              useProjectData already calls per-project; just run over a few
-              projects and deduped here. Self-hides when there's nobody yet. */}
-          {recentCollaborators.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold mb-2">Recent collaborators</h3>
-              <div className="relative">
-              <Carousel setApi={setCollabApi} opts={{ align: "start", dragFree: true, duration: reducedMotion ? 0 : 20 }} className="w-full" aria-label="Recent collaborators">
-                <CarouselContent className="-ml-3">
-                  {recentCollaborators.map((c) => (
-                    <CarouselItem key={c.id} className="pl-3 basis-auto">
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/profile/${c.id}`)}
-                        className="w-28 rounded-2xl border border-border bg-card p-3 text-center transition-all hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      >
-                        <div className="h-14 w-14 mx-auto rounded-full overflow-hidden bg-muted mb-2">
-                          {c.avatar_url ? (
-                            <img src={c.avatar_url} alt={c.full_name} className="h-full w-full object-cover" />
-                          ) : (
-                            <div className="h-full w-full flex items-center justify-center text-sm font-bold text-muted-foreground">
-                              {c.full_name[0]}
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-xs font-semibold truncate">{c.full_name}</p>
-                        {c.role && <p className="text-[10px] text-muted-foreground truncate">{c.role}</p>}
-                      </button>
-                    </CarouselItem>
-                  ))}
-                </CarouselContent>
-                <CarouselPrevious variant="glass" className="hidden sm:flex -left-3" aria-label="Previous — recent collaborators" />
-                <CarouselNext variant="glass" className="hidden sm:flex -right-3" aria-label="Next — recent collaborators" />
-              </Carousel>
-              <CarouselPositionDots api={collabApi} label="Recent collaborators" className="mt-2" />
-              </div>
-            </div>
-          )}
-        </SectionCard>
       </div>
-
 
       {/* Voice-first create */}
       <VoiceFirstCreateModal
