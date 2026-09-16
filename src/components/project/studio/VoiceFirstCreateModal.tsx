@@ -26,6 +26,7 @@ import { compressImage } from "@/lib/extractBriefDocument";
 import { inferWorkspaceType } from "@/lib/inferWorkspaceType";
 import { inferPaymentsInvolved } from "@/lib/inferPaymentsInvolved";
 import { deriveTargetDateFromDeliverables } from "@/lib/deriveTargetDateFromDeliverables";
+import { inferBudgetFromText } from "@/lib/inferBudgetFromText";
 import { getNewRoomCautionReasons } from "@/lib/newRoomCaution";
 import { analytics } from "@/lib/analytics";
 
@@ -152,6 +153,10 @@ export const VoiceFirstCreateModal = ({
   // paymentsInvolvedInferred, purely for the review screen's helper copy.
   const [deadlineInferred, setDeadlineInferred] = useState(false);
   const [budget, setBudget] = useState<string>("");
+  // Tracks whether the current budget value came from inferBudgetFromText
+  // versus the user's own typing -- same purpose as the other two
+  // *Inferred flags above.
+  const [budgetInferred, setBudgetInferred] = useState(false);
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -202,6 +207,17 @@ export const VoiceFirstCreateModal = ({
     }
   };
 
+  /** Applies inferBudgetFromText's result, if any, and marks it as a guess
+   *  for the review screen's helper copy. No `$`-prefixed amount in the
+   *  text leaves Budget genuinely unset, same as before this existed. */
+  const applyInferredBudget = (text: string) => {
+    const guess = inferBudgetFromText(text);
+    if (guess !== null) {
+      setBudget(guess);
+      setBudgetInferred(true);
+    }
+  };
+
   // A review-step draft (title/summary/type/deadline/budget/payments/credit)
   // survives a refresh or an accidental close — nothing here is saved to the
   // DB until "Create". Recording audio itself is NOT persisted (can't
@@ -232,6 +248,7 @@ export const VoiceFirstCreateModal = ({
       setDeadline("");
       setDeadlineInferred(false);
       setBudget("");
+      setBudgetInferred(false);
       setShowLinkInput(false);
       setLinkUrl("");
       setUploadingFile(false);
@@ -405,6 +422,7 @@ export const VoiceFirstCreateModal = ({
       }
       applyInferredPayments(`${result.project.title} ${result.project.summary}`);
       applyDerivedDeadline(result.deliverables);
+      applyInferredBudget(`${result.project.title} ${result.project.summary}`);
       analytics.newRoomDraftReady(workspaceType, (result.deliverables ?? []).length);
       setMode("review");
     } catch (err: any) {
@@ -447,6 +465,7 @@ export const VoiceFirstCreateModal = ({
       setSelected(new Set((finalBrief.deliverables ?? []).slice(0, 8).map((_, i) => i)));
       applyInferredPayments(`${trimmed} ${finalBrief.project.summary}`);
       applyDerivedDeadline(finalBrief.deliverables);
+      applyInferredBudget(`${trimmed} ${finalBrief.project.summary}`);
       analytics.newRoomDraftReady(typeForCall, (finalBrief.deliverables ?? []).length);
       setMode("review");
     } catch (err: any) {
@@ -514,6 +533,7 @@ export const VoiceFirstCreateModal = ({
       }
       applyInferredPayments(`${result.project.title} ${result.project.summary}`);
       applyDerivedDeadline(result.deliverables);
+      applyInferredBudget(`${result.project.title} ${result.project.summary}`);
       analytics.newRoomDraftReady(workspaceType, (result.deliverables ?? []).length);
       setMode("review");
     } catch (err: any) {
@@ -556,6 +576,7 @@ export const VoiceFirstCreateModal = ({
       setSelected(new Set((result.deliverables ?? []).slice(0, 8).map((_, i) => i)));
       applyInferredPayments(`${result.project.title} ${result.project.summary}`);
       applyDerivedDeadline(result.deliverables);
+      applyInferredBudget(`${result.project.title} ${result.project.summary}`);
       analytics.newRoomDraftReady(workspaceType, (result.deliverables ?? []).length);
       setMode("review");
     } catch (err: any) {
@@ -1329,10 +1350,19 @@ export const VoiceFirstCreateModal = ({
                 <input
                   type="text"
                   value={budget}
-                  onChange={(e) => setBudget(e.target.value)}
+                  onChange={(e) => { setBudget(e.target.value); setBudgetInferred(false); }}
                   placeholder="e.g. $2,000"
                   className="w-full rounded-md border border-border bg-background px-2.5 py-2 text-sm"
                 />
+                {/* A `$`-prefixed amount Kreto spotted in what was said,
+                    still fully editable above -- same pattern as the
+                    Target date and Money involved? guesses. */}
+                {budgetInferred && budget && (
+                  <p className="text-[11px] flex items-center gap-1" style={{ color: "hsl(var(--energy))" }}>
+                    <Sparkles className="h-3 w-3 shrink-0" aria-hidden />
+                    Kreto's guess from what you said.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -1353,6 +1383,8 @@ export const VoiceFirstCreateModal = ({
               setPaymentsInvolvedInferred(false);
               setDeadline("");
               setDeadlineInferred(false);
+              setBudget("");
+              setBudgetInferred(false);
               setMode("prompt");
               clearDraft();
             }}
