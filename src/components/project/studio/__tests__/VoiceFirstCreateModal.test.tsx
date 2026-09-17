@@ -293,6 +293,17 @@ describe("VoiceFirstCreateModal", () => {
       await screen.findByText("Kreto structured your project — review and edit");
     });
 
+    it("Cancel discards the recording instead of sending it to extract-brief", async () => {
+      renderModal();
+      fireEvent.click(screen.getByLabelText("Describe it by voice instead"));
+      await screen.findByLabelText("Stop recording");
+      fireEvent.click(screen.getByRole("button", { name: "Cancel — discard this recording" }));
+      // Back to the blank prompt screen, not thinking/review -- and the AI
+      // was never called with whatever was (or wasn't) captured.
+      await screen.findByRole("heading", { name: "What are you making?" });
+      expect(mocks.invoke).not.toHaveBeenCalled();
+    });
+
     it("never enters listening when mic permission is denied", async () => {
       stubMicPermission("deny");
       renderModal();

@@ -181,6 +181,11 @@ export const VoiceFirstCreateModal = ({
 
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  // Distinguishes "Stop" (process what was captured) from "Cancel"
+  // (discard it) inside the shared MediaRecorder.onstop handler -- both
+  // paths stop the same recorder, only this flag decides whether the
+  // captured audio goes on to extract-brief or is simply thrown away.
+  const recordingCancelledRef = useRef(false);
   const tickRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -342,11 +347,13 @@ export const VoiceFirstCreateModal = ({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const rec = new MediaRecorder(stream, { mimeType: "audio/webm" });
       chunksRef.current = [];
+      recordingCancelledRef.current = false;
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       rec.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
+        if (recordingCancelledRef.current) return;
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         await processAudio(blob);
       };
@@ -372,6 +379,23 @@ export const VoiceFirstCreateModal = ({
       mediaRef.current.stop();
     }
     setMode("thinking");
+  };
+
+  /** Discards whatever was captured instead of sending it to extract-brief
+   *  -- previously the only way to leave recording mode was Stop, which
+   *  always processed the audio even for an accidental or changed-mind
+   *  recording (NEW_ROOM_VOICE_UX_REPORT.md's own named gap). Reuses the
+   *  same MediaRecorder.onstop teardown (releases the mic stream) via the
+   *  cancelled flag, so there's no separate cleanup path to keep in sync. */
+  const cancelRecording = () => {
+    stopTimer();
+    analytics.newRoomVoiceCancelled(seconds);
+    recordingCancelledRef.current = true;
+    if (mediaRef.current && mediaRef.current.state !== "inactive") {
+      mediaRef.current.stop();
+    }
+    chunksRef.current = [];
+    setMode("prompt");
   };
 
   /** supabase-js's functions.invoke() error only ever says "Edge Function
@@ -1051,6 +1075,16 @@ export const VoiceFirstCreateModal = ({
             </div>
             <p className="text-2xl font-mono tabular-nums">{fmtSec(seconds)}</p>
             <p className="text-sm text-muted-foreground mt-2">Tap to stop when you're done</p>
+            {/* Discard-without-processing escape hatch -- previously the
+                only way out of recording mode was Stop, which always sent
+                the audio to Kreto even for a "wait, wrong button" tap. */}
+            <button
+              type="button"
+              onClick={cancelRecording}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-4"
+            >
+              Cancel — discard this recording
+            </button>
           </>
         )}
 

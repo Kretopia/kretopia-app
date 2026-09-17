@@ -407,6 +407,13 @@ export const analytics = {
       properties: { duration_bucket: durationSeconds < 10 ? 'short' : durationSeconds < 60 ? 'medium' : 'long' },
     }),
 
+  newRoomVoiceCancelled: (durationSeconds: number) =>
+    trackEvent({
+      eventName: 'new_room_voice_cancelled',
+      eventCategory: EventCategory.PROJECT,
+      properties: { duration_bucket: durationSeconds < 10 ? 'short' : durationSeconds < 60 ? 'medium' : 'long' },
+    }),
+
   newRoomTextSubmitted: (workspaceType: string) =>
     trackEvent({
       eventName: 'new_room_text_submitted',
