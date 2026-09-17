@@ -27,6 +27,7 @@ import { inferWorkspaceType } from "@/lib/inferWorkspaceType";
 import { inferPaymentsInvolved } from "@/lib/inferPaymentsInvolved";
 import { deriveTargetDateFromDeliverables } from "@/lib/deriveTargetDateFromDeliverables";
 import { inferBudgetFromText } from "@/lib/inferBudgetFromText";
+import { parseTaskDueDate } from "@/lib/parseTaskDueDate";
 import { getNewRoomCautionReasons } from "@/lib/newRoomCaution";
 import { analytics } from "@/lib/analytics";
 
@@ -651,6 +652,7 @@ export const VoiceFirstCreateModal = ({
           description: d.description ?? null,
           status: "todo",
           created_by: user.id,
+          due_date: parseTaskDueDate(d.due_date),
         }));
         try {
           await supabase.from("project_tasks").insert(rows);
