@@ -97,7 +97,7 @@ export const InviteCard = () => {
       <CardHeader className={cn("pb-3 bg-gradient-to-r", network.tier.gradient)}>
         <CardTitle className="flex items-center justify-between text-lg">
           <div className="flex items-center gap-2">
-            <span className="text-lg">{network.tier.icon}</span>
+            <network.tier.icon className={cn("h-5 w-5", network.tier.color)} aria-hidden />
             <div>
               <span className="block">Creative Circle</span>
               <span className={cn("text-xs font-medium", network.tier.color)}>
@@ -118,7 +118,7 @@ export const InviteCard = () => {
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground flex items-center gap-1">
                 <TrendingUp className="h-3 w-3" />
-                {nextTierInfo.remaining} more to <span className={cn("font-bold")}>{nextTierInfo.next.icon} {nextTierInfo.next.label}</span>
+                {nextTierInfo.remaining} more to <span className="inline-flex items-center gap-1 font-bold"><nextTierInfo.next.icon className="h-3 w-3" aria-hidden />{nextTierInfo.next.label}</span>
               </span>
               <span className="text-muted-foreground">{network.referralCount}/{nextTierInfo.next.minReferrals}</span>
             </div>
@@ -138,14 +138,14 @@ export const InviteCard = () => {
               </div>
             )}
             {network.tier.rewards.feeDiscount > 0 && (
-              <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/10 p-2 text-center">
-                <div className="text-xs font-bold text-emerald-600">{network.tier.rewards.feeDiscount}% off</div>
+              <div className="rounded-lg bg-primary/5 border border-primary/10 p-2 text-center">
+                <div className="text-xs font-bold text-primary">{network.tier.rewards.feeDiscount}% off</div>
                 <div className="text-[10px] text-muted-foreground">Fees</div>
               </div>
             )}
             {network.tier.rewards.commissionRate > 0 && (
-              <div className="rounded-lg bg-amber-500/5 border border-amber-500/10 p-2 text-center">
-                <div className="text-xs font-bold text-amber-600">{network.tier.rewards.commissionRate}%</div>
+              <div className="rounded-lg p-2 text-center" style={{ backgroundColor: "hsl(var(--accent-pay)/0.06)", borderWidth: 1, borderColor: "hsl(var(--accent-pay)/0.15)" }}>
+                <div className="text-xs font-bold" style={{ color: "hsl(var(--accent-pay))" }}>{network.tier.rewards.commissionRate}%</div>
                 <div className="text-[10px] text-muted-foreground">Commission</div>
               </div>
             )}
@@ -217,7 +217,7 @@ export const InviteCard = () => {
               <div>
                 <p className="text-xs font-medium flex items-center gap-1">
                   <Zap className="h-3 w-3 text-primary" />
-                  Next: <span className="font-bold">{nextTierInfo.next.icon} {nextTierInfo.next.label}</span>
+                  Next: <span className="inline-flex items-center gap-1 font-bold"><nextTierInfo.next.icon className="h-3 w-3" aria-hidden />{nextTierInfo.next.label}</span>
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
                   {nextTierInfo.next.rewards.feeDiscount > 0 && `${nextTierInfo.next.rewards.feeDiscount}% off fees`}
@@ -268,7 +268,7 @@ function TierProgressionList({ currentTier, referralCount }: { currentTier: stri
           >
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
-                <span>{tier.icon}</span>
+                <tier.icon className={cn("h-4 w-4", isActive ? tier.color : "text-muted-foreground")} aria-hidden />
                 <span className={cn("text-sm font-bold", isActive ? tier.color : "text-foreground")}>{tier.label}</span>
                 {isActive && <Badge variant="default" className="text-[9px] px-1.5 py-0">You</Badge>}
                 {isUnlocked && !isActive && <Badge variant="secondary" className="text-[9px] px-1.5 py-0">Unlocked</Badge>}

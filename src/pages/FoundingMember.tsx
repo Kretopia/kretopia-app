@@ -1,15 +1,20 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CardCarousel } from "@/components/kretopia/CardCarousel";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { SEO } from "@/components/SEO";
-import { Star, CheckCircle2, ArrowLeft, Trophy, Calendar, ListChecks } from "lucide-react";
+import Confetti from "react-dom-confetti";
+import { Star, CheckCircle2, ArrowLeft, Trophy, Calendar, ListChecks, Sparkles } from "lucide-react";
 import { useFoundingMemberProgress } from "@/hooks/useFoundingMemberProgress";
-import { FOUNDING_QUESTS, foundingDeadlineLabel, foundingDaysLeft } from "@/lib/foundingMember";
+import { FOUNDING_QUESTS, FOUNDING_MEMBER_CAP, foundingDeadlineLabel, foundingDaysLeft } from "@/lib/foundingMember";
 import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
 import { FeaturePageHeader } from "@/components/features/FeaturePageHeader";
 import { StudioFeatureShell } from "@/components/studio-reference/StudioFeatureShell";
+import { HoloCard } from "@/components/passport/HoloCard";
+import { KretoCharacter } from "@/components/brand/KretoCharacter";
 import type { TutorialStep } from "@/components/landing/kretopia/FeatureTutorial";
 
 const FOUNDING_TUTORIAL: TutorialStep[] = [
@@ -24,15 +29,42 @@ const QUEST_CTA: Record<string, { label: string; to: string }> = {
   invite_signups: { label: "Invite friends", to: "/profile?tab=invite" },
 };
 
+// Same recipe as NewRoomLaunchScreen's own celebration: three confetti
+// emitters across the top of the viewport, one hsl(var(--energy))-based
+// config -- one visual language for "you just earned something" across
+// the app, not a bespoke one invented per feature.
+const confettiConfig = {
+  angle: 90,
+  spread: 280,
+  startVelocity: 55,
+  elementCount: 140,
+  dragFriction: 0.1,
+  duration: 5000,
+  stagger: 2,
+  width: "10px",
+  height: "10px",
+  colors: ["hsl(var(--energy))", "#ffffff", "hsl(var(--energy) / 0.6)", "hsl(var(--accent))"],
+};
+
 export default function FoundingMember() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { loading, progress, completedCount, allComplete, badgeAwarded } = useFoundingMemberProgress();
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const total = FOUNDING_QUESTS.length;
   const pct = Math.round((completedCount / total) * 100);
   const deadline = foundingDeadlineLabel();
   const daysLeft = foundingDaysLeft();
+  const urgent = daysLeft <= 14;
+
+  // Fires once, the moment all 3 milestones are already complete on
+  // arrival or become complete live -- never replays on every render.
+  useEffect(() => {
+    if (!allComplete) { setShowConfetti(false); return; }
+    const t = setTimeout(() => setShowConfetti(true), 250);
+    return () => clearTimeout(t);
+  }, [allComplete]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -58,52 +90,101 @@ export default function FoundingMember() {
           Back
         </button>
 
-        <div className="flex justify-end mb-3">
-          <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground bg-card border border-border rounded-full px-2.5 py-1 shrink-0">
-            <Calendar className="h-3 w-3" />
-            Closes {deadline} · {daysLeft} day{daysLeft === 1 ? "" : "s"} left
-          </div>
-        </div>
-        {/* Overall progress */}
-        <Card className="p-4 mb-4">
-          <div className="flex items-center justify-between text-xs font-medium mb-1.5">
-            <span className="text-muted-foreground">
-              {completedCount} of {total} completed
-            </span>
-            <span className="text-foreground">{pct}%</span>
-          </div>
-          <Progress value={pct} className="h-2" />
-        </Card>
+        {/* Hero — the badge itself, as a real Passport-grade medallion
+            (same HoloCard treatment as the owner Passport / New Room's
+            celebration) instead of a plain card. Only 100 of these ever
+            exist, so the one place that shows it off gets the one
+            dominant, imagery-rich treatment instead of a muted progress
+            bar. */}
+        <HoloCard maxTilt={6} className="mt-3">
+          <div className={cn(
+            "relative overflow-hidden rounded-2xl border border-border bg-card p-6 text-center",
+            (allComplete || badgeAwarded) && "shadow-glow",
+          )}>
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0"
+              style={{ background: "radial-gradient(65% 60% at 50% 0%, hsl(var(--energy) / 0.16), transparent 65%)" }}
+            />
+            <div className="absolute top-0 left-1/4 z-10"><Confetti active={showConfetti} config={confettiConfig} /></div>
+            <div className="absolute top-0 left-1/2 z-10"><Confetti active={showConfetti} config={confettiConfig} /></div>
+            <div className="absolute top-0 left-3/4 z-10"><Confetti active={showConfetti} config={confettiConfig} /></div>
 
-        {/* Celebration / call to action */}
-        {allComplete ? (
-          <Card className="p-5 mb-4 border-primary/40 bg-primary/5">
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                <Trophy className="h-5 w-5 text-primary" />
+            <div className="relative">
+              <div
+                className={cn(
+                  "mx-auto h-24 w-24 rounded-full flex items-center justify-center border-2 bg-gradient-to-br transition-all",
+                  badgeAwarded
+                    ? "from-[hsl(var(--energy)/0.3)] via-accent/20 to-[hsl(var(--energy)/0.05)] border-[hsl(var(--energy))] shadow-glow"
+                    : allComplete
+                      ? "from-[hsl(var(--energy)/0.22)] to-[hsl(var(--energy)/0.05)] border-[hsl(var(--energy)/0.7)]"
+                      : "from-muted/40 to-muted/10 border-border",
+                )}
+              >
+                <Trophy className={cn("h-11 w-11", (allComplete || badgeAwarded) ? "text-[hsl(var(--energy))]" : "text-muted-foreground")} />
               </div>
-              <div>
-                <p className="font-bold text-base">You earned it.</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {badgeAwarded
-                    ? "Your Founding Member badge is now on your profile. Wear it well."
-                    : "All 3 milestones complete — your badge will appear on your profile shortly."}
-                </p>
-                <Button
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => navigate(user ? "/profile" : "/auth")}
-                >
-                  View my profile
-                </Button>
+
+              <p className="mt-4 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: "hsl(var(--energy))" }}>
+                <Sparkles className="h-3 w-3" aria-hidden />
+                {FOUNDING_MEMBER_CAP} badges. Ever.
+              </p>
+
+              <p className="mt-2 text-xl font-black tracking-[-0.02em]">
+                {badgeAwarded
+                  ? "Your badge is live."
+                  : allComplete
+                    ? "You earned it."
+                    : `${completedCount} of ${total} milestones complete`}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
+                {badgeAwarded
+                  ? "Permanently on your public Passport, as one of Kretopia's first 100 members."
+                  : allComplete
+                    ? "All 3 milestones complete — your badge will appear on your profile shortly."
+                    : "Finish all 3 to claim a permanent Founding Member badge on your Passport."}
+              </p>
+
+              <div className="mt-5 max-w-xs mx-auto space-y-1.5">
+                <div className="flex items-center justify-between text-xs font-medium">
+                  <span className="text-muted-foreground">{completedCount} of {total} completed</span>
+                  <span className="text-foreground">{pct}%</span>
+                </div>
+                <Progress value={pct} className="h-2" />
               </div>
+
+              <div
+                className={cn(
+                  "mt-4 inline-flex items-center gap-1.5 text-xs rounded-full px-3 py-1 border",
+                  urgent && !badgeAwarded ? "text-[hsl(var(--warning))] border-[hsl(var(--warning)/0.4)] bg-[hsl(var(--warning)/0.08)]" : "text-muted-foreground border-border bg-card",
+                )}
+              >
+                <Calendar className="h-3 w-3" />
+                Closes {deadline} · {daysLeft} day{daysLeft === 1 ? "" : "s"} left
+              </div>
+
+              {(allComplete || badgeAwarded) && (
+                <div>
+                  <Button
+                    size="sm"
+                    className="mt-4 gap-1.5"
+                    onClick={() => navigate(user ? "/profile" : "/auth")}
+                  >
+                    View my profile
+                  </Button>
+                </div>
+              )}
             </div>
-          </Card>
-        ) : (
-          <p className="text-sm text-muted-foreground px-1 mb-3">
-            Complete all 3 to earn your Founding Member badge before {deadline}.
-          </p>
-        )}
+
+            {/* Kreto, front and center for the win -- same mascot presence
+                New Room's celebration and Today use, here specifically
+                once there's something to celebrate. */}
+            {(allComplete || badgeAwarded) && (
+              <div className="absolute right-2 bottom-0 hidden sm:block opacity-90 pointer-events-none" aria-hidden>
+                <KretoCharacter variant="main" size={110} floatAmplitude={3} floatDuration={8} />
+              </div>
+            )}
+          </div>
+        </HoloCard>
 
         {/* Quest cards */}
         <CardCarousel label="Milestones" itemClassName="basis-[88%] sm:basis-1/2">
@@ -114,17 +195,19 @@ export default function FoundingMember() {
             return (
               <Card
                 key={quest.key}
-                className={`p-4 transition-colors ${
-                  p.completed ? "border-primary/40 bg-primary/[0.04]" : ""
-                }`}
+                className={cn(
+                  "p-4 transition-colors",
+                  p.completed && "border-[hsl(var(--energy)/0.4)] bg-[hsl(var(--energy)/0.04)]",
+                )}
               >
                 <div className="flex items-start gap-3">
                   <div
-                    className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 text-sm font-bold ${
+                    className={cn(
+                      "h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-sm font-bold border-2",
                       p.completed
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground"
-                    }`}
+                        ? "bg-[hsl(var(--energy))] border-[hsl(var(--energy))] text-white shadow-glow"
+                        : "bg-muted border-border text-muted-foreground",
+                    )}
                   >
                     {p.completed ? <CheckCircle2 className="h-5 w-5" /> : i + 1}
                   </div>
@@ -132,9 +215,7 @@ export default function FoundingMember() {
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-semibold text-sm leading-snug">{quest.title}</p>
                       <span
-                        className={`text-xs font-mono shrink-0 ${
-                          p.completed ? "text-primary" : "text-muted-foreground"
-                        }`}
+                        className={cn("text-xs font-mono shrink-0", p.completed ? "text-[hsl(var(--energy))]" : "text-muted-foreground")}
                       >
                         {p.current}/{p.target}
                       </span>

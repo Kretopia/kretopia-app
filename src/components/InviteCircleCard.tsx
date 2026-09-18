@@ -106,7 +106,7 @@ export const InviteCircleCard = ({ variant = "home", className }: InviteCircleCa
             "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-card",
             tier.ringClass.replace("ring-", "border-")
           )}>
-            <span className="text-xl" aria-hidden>{tier.icon}</span>
+            <tier.icon className={cn("h-5 w-5", tier.color)} aria-hidden />
           </div>
 
           <div className="min-w-0 flex-1">
