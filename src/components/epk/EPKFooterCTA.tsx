@@ -8,9 +8,15 @@ interface EPKFooterCTAProps {
   profileName: string;
   onClaimClick?: () => void;
   onShareClick?: () => void;
+  isSignedIn?: boolean;
+  isConnected?: boolean;
+  isPending?: boolean;
+  onConnect?: () => void;
+  onMessage?: () => void;
+  onCollaborate?: () => void;
 }
 
-export const EPKFooterCTA = ({ isOwner, isUnclaimed, profileName, onClaimClick, onShareClick }: EPKFooterCTAProps) => {
+export const EPKFooterCTA = ({ isOwner, isUnclaimed, profileName, onClaimClick, onShareClick, isSignedIn, isConnected, isPending, onConnect, onMessage, onCollaborate }: EPKFooterCTAProps) => {
   const navigate = useNavigate();
 
   return (
@@ -45,6 +51,19 @@ export const EPKFooterCTA = ({ isOwner, isUnclaimed, profileName, onClaimClick, 
               Not you? Sign Up to Connect
             </Button>
           </>
+        ) : isSignedIn ? (
+          <div className="grid grid-cols-2 gap-2">
+            {isConnected ? (
+              <>
+                <Button onClick={onMessage} className="gap-2"><UserCheck className="h-4 w-4" />Message</Button>
+                <Button onClick={onCollaborate} variant="outline" className="gap-2"><Building2 className="h-4 w-4" />Collaborate</Button>
+              </>
+            ) : (
+              <Button onClick={onConnect} disabled={isPending} className="col-span-2 gap-2">
+                <UserCheck className="h-4 w-4" />{isPending ? "Request pending" : `Connect with ${profileName.split(' ')[0]}`}
+              </Button>
+            )}
+          </div>
         ) : (
           /* Non-user visitor - dual CTA */
           <div className="space-y-2">
@@ -70,19 +89,23 @@ export const EPKFooterCTA = ({ isOwner, isUnclaimed, profileName, onClaimClick, 
 
         {/* Secondary Links */}
         <div className="flex items-center justify-center gap-4 text-sm">
-          <button
+          <Button
+            type="button"
+            variant="link"
             onClick={() => navigate('/')}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="h-auto p-0 text-muted-foreground hover:text-foreground"
           >
             About Kretopia
-          </button>
+          </Button>
           <span className="text-muted-foreground">•</span>
-          <button
+          <Button
+            type="button"
+            variant="link"
             onClick={() => navigate('/auth')}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="h-auto p-0 text-muted-foreground hover:text-foreground"
           >
             Log In
-          </button>
+          </Button>
         </div>
 
         {/* Branding */}

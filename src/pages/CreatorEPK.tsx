@@ -9,16 +9,21 @@ import { ClaimProfileDialog } from "@/components/profile/ClaimProfileDialog";
 import { EPKShareToolbar } from "@/components/epk/EPKShareToolbar";
 import { EPKReviews } from "@/components/epk/EPKReviews";
 import { EPKFooterCTA } from "@/components/epk/EPKFooterCTA";
+import { PublicPassportHero } from "@/components/passport/PublicPassportHero";
 import { ModelStrip } from "@/components/passport/model/ModelStrip";
 import { VideoIntroSection } from "@/components/profile/VideoIntroSection";
 import { RateCardSection } from "@/components/profile/RateCardSection";
 import { getMediaThumbnail } from "@/lib/mediaUtils";
-import { HoloCard } from "@/components/passport/HoloCard";
+import { DirectMessageDialog } from "@/components/DirectMessageDialog";
+import { StartProjectFromMatchDialog } from "@/components/project/StartProjectFromMatchDialog";
+import { InviteToProjectDialog } from "@/components/project/InviteToProjectDialog";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { notifyUser } from "@/lib/notifyUser";
+import { toast } from "sonner";
 import {
   MapPin, 
   Globe, 
   Calendar, 
-  Mail, 
   ExternalLink,
   Play,
   Music,
@@ -27,10 +32,6 @@ import {
   Award,
   CheckCircle2,
   Sparkles,
-  Instagram,
-  Twitter,
-  Linkedin,
-  Youtube,
   UserCheck,
   ArrowRight,
   Package,
@@ -74,6 +75,19 @@ interface Profile {
   job_title?: string;
   video_intro_url?: string | null;
   headline?: string | null;
+  username?: string | null;
+  sub_roles?: string[] | null;
+  profile_frame?: string | null;
+  availability_status?: string | null;
+  availability_note?: string | null;
+  id_verified?: boolean;
+  email_verified?: boolean;
+  phone_verified?: boolean;
+  payment_verified?: boolean;
+  hourly_rate?: number;
+  project_rate?: number;
+  rate_currency?: string;
+  avg_response_hours?: number;
 }
 
 interface PortfolioItem {
@@ -138,6 +152,11 @@ const CreatorEPK = () => {
   const [selectedItem, setSelectedItem] = useState<PortfolioItem | null>(null);
   const [showClaimDialog, setShowClaimDialog] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'none' | 'pending' | 'connected'>('none');
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [messageOpen, setMessageOpen] = useState(false);
+  const [collaborateOpen, setCollaborateOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const shareRef = useRef<HTMLDivElement>(null);
 
   // Check if current user is the profile owner
@@ -173,7 +192,10 @@ const CreatorEPK = () => {
         // confirmed by reading each call site before making this change.
         const { data: profileData, error: profileError } = await supabase
           .from('public_profiles_safe')
-          .select('user_id, full_name, role, bio, location, avatar_url, linkedin_url, instagram_url, twitter_url, youtube_url, spotify_url, behance_url, imdb_url, soundcloud_url, verification_tier, verification_status, professional_skills, cover_image_url')
+          // Select the active safe-view shape instead of naming columns from a
+          // newer schema snapshot. This keeps public Passports available while
+          // production migrations propagate, without reading the base table.
+          .select('*')
           .eq('user_id', userId)
           .maybeSingle();
 
@@ -184,7 +206,7 @@ const CreatorEPK = () => {
           return;
         }
 
-        setProfile(profileData);
+        setProfile(profileData as Profile);
 
         // Fetch all data in parallel
         const [portfolioRes, pressRes, awardsRes, creditsRes, statsRes, productsRes, icdbRes, reviewsRes] = await Promise.all([
@@ -304,30 +326,68 @@ const CreatorEPK = () => {
     fetchPublicProfile();
   }, [userId]);
 
-  const handleBookCall = () => {
-    if (profile?.calendly_url) {
-      window.open(profile.calendly_url, '_blank');
+  useEffect(() => {
+    if (!currentUserId || !userId || currentUserId === userId) return;
+    supabase
+      .from('connections')
+      .select('status')
+      .or(`and(user_id.eq.${currentUserId},connected_user_id.eq.${userId}),and(user_id.eq.${userId},connected_user_id.eq.${currentUserId})`)
+      .limit(1)
+      .then(({ data }) => {
+        const status = data?.[0]?.status;
+        setConnectionStatus(status === 'accepted' ? 'connected' : status ? 'pending' : 'none');
+      });
+  }, [currentUserId, userId]);
+
+  const handleConnect = async () => {
+    if (!userId) return;
+    if (!currentUserId) {
+      navigate(`/auth?connect=${userId}`);
+      return;
     }
+    setIsConnecting(true);
+    const { error } = await supabase.from('connections').insert({
+      user_id: currentUserId,
+      connected_user_id: userId,
+      status: 'pending',
+    });
+    setIsConnecting(false);
+    if (error) {
+      if (error.code === '23505') {
+        setConnectionStatus('pending');
+        toast.info('Connection request already sent');
+        return;
+      }
+      toast.error('Unable to send the connection request');
+      return;
+    }
+    setConnectionStatus('pending');
+    toast.success(`Connection request sent to ${profile?.full_name}`);
+    await notifyUser({
+      userId,
+      title: 'New Connection Request',
+      message: 'Someone wants to connect with you',
+      type: 'connection',
+      link: `/profile/${currentUserId}`,
+      actionUrl: `/profile/${currentUserId}`,
+      actionText: 'View Passport',
+    });
   };
 
-  const handleVisitWebsite = () => {
-    if (profile?.website) {
-      window.open(profile.website, '_blank');
+  const handleShare = async () => {
+    const url = `${APP_URL}/epk/${userId}`;
+    if (navigator.share) {
+      await navigator.share({ title: `${profile?.full_name} | Kretopia`, url }).catch(() => undefined);
+      return;
     }
+    await navigator.clipboard.writeText(url);
+    toast.success('Passport link copied');
   };
-
-  const socialLinks = [
-    { url: profile?.instagram_url, icon: Instagram, label: 'Instagram' },
-    { url: profile?.twitter_url, icon: Twitter, label: 'Twitter' },
-    { url: profile?.linkedin_url, icon: Linkedin, label: 'LinkedIn' },
-    { url: profile?.youtube_url, icon: Youtube, label: 'YouTube' },
-    { url: profile?.spotify_url, icon: Music, label: 'Spotify' },
-  ].filter(link => link.url);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+        <LoadingSpinner text="Opening creative Passport" />
       </div>
     );
   }
@@ -400,109 +460,22 @@ const CreatorEPK = () => {
       {/* Main Content - Mobile-first vertical layout */}
       <div className="max-w-lg mx-auto px-4 pt-6 pb-32">
 
-        {/* Dominant identity surface — same 3D HoloCard treatment as the owner Passport */}
+        {/* Public Passport — same dominant identity treatment as the owner Passport. */}
         <div className="mb-8">
-          <HoloCard>
-            <div className="relative overflow-hidden rounded-2xl border border-border bg-card">
-              {/* Cover */}
-              <div
-                className={cn(
-                  "relative aspect-[3/1] sm:aspect-[4/1] overflow-hidden",
-                  !profile.cover_image_url && "bg-muted/60",
-                )}
-              >
-                {profile.cover_image_url && (
-                  <img
-                    src={profile.cover_image_url}
-                    alt=""
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                  />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-card via-card/10 to-transparent" />
-                <div className="absolute top-2 left-2 px-2.5 py-1 bg-[hsl(var(--signal-teal))] text-black text-[10px] font-bold uppercase tracking-[0.15em] rounded-full">
-                  Verified Creative Passport
-                </div>
-              </div>
-
-              <div className="relative px-5 pb-5 -mt-10 space-y-4 text-center">
-                {/* Avatar */}
-                <div className="relative inline-block">
-                  <Avatar className="h-24 w-24 border-4 border-card shadow-xl mx-auto">
-                    <AvatarImage src={profile.avatar_url} alt={profile.full_name} />
-                    <AvatarFallback className="text-2xl font-bold bg-primary/10">
-                      {profile.full_name?.charAt(0) || '?'}
-                    </AvatarFallback>
-                  </Avatar>
-                  {verificationBadge && (
-                    <div className={cn(
-                      "absolute -bottom-1 -right-1 p-1.5 rounded-full",
-                      verificationBadge.color
-                    )}>
-                      <CheckCircle2 className="h-4 w-4 text-white" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Name & Role */}
-                <div>
-                  <h1 className="text-2xl font-black tracking-[-0.03em]">{profile.full_name}</h1>
-                  <p className="text-primary font-bold uppercase tracking-wider text-xs mt-0.5">{profile.job_title || profile.role || 'Creator'}</p>
-                  {profile.location && (
-                    <p className="text-sm text-muted-foreground flex items-center justify-center gap-1 mt-1">
-                      <MapPin className="h-3 w-3" />
-                      {profile.location}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground/90 max-w-xs mx-auto pt-1">
-                    One link. Replaces résumé, IMDb, EPK, and business card — credits verified by collaborators on Kretopia.
-                  </p>
-                </div>
-
-                {/* Verification Badge */}
-                {verificationBadge && (
-                  <Badge className={cn("text-white border-0", verificationBadge.color)}>
-                    <Sparkles className="h-3 w-3 mr-1" />
-                    {verificationBadge.label}
-                  </Badge>
-                )}
-
-                {/* ICDB Creator ID */}
-                {(profile as any).icdb_creator_id && (
-                  <div className="flex items-center justify-center gap-2 p-2 rounded-lg bg-muted/50 border">
-                    <Fingerprint className="h-3.5 w-3.5 text-primary" />
-                    <span className="text-[11px] font-mono font-semibold text-primary">{(profile as any).icdb_creator_id}</span>
-                    <Badge variant="outline" className="text-[9px] h-4 border-primary/20">Kretopia Credits</Badge>
-                  </div>
-                )}
-
-                {/* Bio */}
-                {profile.bio && (
-                  <p className="text-muted-foreground text-sm leading-relaxed max-w-sm mx-auto">
-                    {profile.bio}
-                  </p>
-                )}
-
-                {/* Social Links — visible to all visitors */}
-                {socialLinks.length > 0 && (
-                  <div className="flex items-center justify-center gap-3 pt-2">
-                    {socialLinks.map((link, index) => (
-                      <a
-                        key={index}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2.5 rounded-full bg-muted/50 hover:bg-primary/10 hover:text-primary transition-colors"
-                        aria-label={link.label}
-                      >
-                        <link.icon className="h-5 w-5" />
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </HoloCard>
+          <PublicPassportHero
+            profile={profile}
+            credits={credits}
+            connectionStatus={connectionStatus}
+            isOwner={isOwner}
+            isSignedIn={Boolean(currentUserId)}
+            isConnecting={isConnecting}
+            onConnect={handleConnect}
+            onMessage={() => setMessageOpen(true)}
+            onCollaborate={() => setCollaborateOpen(true)}
+            onAddToProject={() => setInviteOpen(true)}
+            onShare={handleShare}
+            onJoin={() => navigate(`/auth?connect=${userId}`)}
+          />
         </div>
 
         {/* Owner Share Toolbar */}
@@ -565,13 +538,14 @@ const CreatorEPK = () => {
                 {body}
               </p>
               {!profile.headline && longBio && (
-                <button
+                <Button
                   type="button"
+                  variant="link"
                   onClick={() => setBioExpanded((v) => !v)}
-                  className="mt-2 text-xs font-semibold text-white hover:text-[#FF2DA1] hover:underline transition-colors"
+                  className="mt-2 h-auto p-0 text-xs font-semibold text-primary"
                 >
                   {bioExpanded ? "Show less" : "Read more"}
-                </button>
+                </Button>
               )}
             </div>
           );
@@ -607,32 +581,6 @@ const CreatorEPK = () => {
             onSuccess={() => navigate('/onboarding')}
           />
         )}
-
-        {/* CTA Buttons */}
-        <div className="space-y-3 mb-8">
-          {currentUserId && profile.calendly_url && (
-            <Button 
-              onClick={handleBookCall}
-              className="w-full h-14 text-base font-semibold bg-primary hover:bg-primary/90 shadow-lg"
-              size="lg"
-            >
-              <Calendar className="h-5 w-5 mr-2" />
-              Book a Call
-            </Button>
-          )}
-          
-          {currentUserId && profile.website && (
-            <Button 
-              onClick={handleVisitWebsite}
-              variant="outline"
-              className="w-full h-12 text-base border-2"
-              size="lg"
-            >
-              <Globe className="h-5 w-5 mr-2" />
-              Visit Website
-            </Button>
-          )}
-        </div>
 
         {/* Professional Skills */}
         {profile.professional_skills && Array.isArray(profile.professional_skills) && profile.professional_skills.length > 0 && (
@@ -1003,7 +951,20 @@ const CreatorEPK = () => {
         profileName={profile.full_name}
         onClaimClick={() => setShowClaimDialog(true)}
         onShareClick={() => shareRef.current?.scrollIntoView({ behavior: 'smooth' })}
+        isSignedIn={Boolean(currentUserId)}
+        isConnected={connectionStatus === 'connected'}
+        isPending={connectionStatus === 'pending'}
+        onConnect={handleConnect}
+        onMessage={() => setMessageOpen(true)}
+        onCollaborate={() => setCollaborateOpen(true)}
       />
+      {profile && <DirectMessageDialog open={messageOpen} onOpenChange={setMessageOpen} recipientId={profile.user_id} recipientName={profile.full_name} recipientAvatar={profile.avatar_url} />}
+      {profile && connectionStatus === 'connected' && (
+        <StartProjectFromMatchDialog open={collaborateOpen} onOpenChange={setCollaborateOpen} matchedUser={{ id: profile.user_id, name: profile.full_name, role: profile.role, avatar: profile.avatar_url }} />
+      )}
+      {profile && connectionStatus === 'connected' && (
+        <InviteToProjectDialog open={inviteOpen} onOpenChange={setInviteOpen} recipientUserId={profile.user_id} recipientName={profile.full_name} />
+      )}
     </div>
   );
 };
