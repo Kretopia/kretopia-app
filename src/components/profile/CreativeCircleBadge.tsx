@@ -38,18 +38,18 @@ export function CreativeCircleBadge({ userId, size = "sm" }: CreativeCircleBadge
         <TooltipTrigger asChild>
           <Badge
             className={cn(
-              "gap-0.5 border-0 font-semibold cursor-default",
+              "gap-1 border-0 font-semibold cursor-default",
               size === "sm" ? "h-5 px-1.5 text-[10px]" : "h-6 px-2 text-xs",
               `bg-gradient-to-r ${tier.gradient}`,
               tier.color,
             )}
           >
-            <span>{tier.icon}</span>
+            <tier.icon className={size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3"} aria-hidden />
             {tier.label}
           </Badge>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="text-xs">
-          <p className="font-semibold">{tier.icon} {tier.label} — Creative Circle</p>
+          <p className="font-semibold flex items-center gap-1"><tier.icon className="h-3 w-3" aria-hidden /> {tier.label} — Creative Circle</p>
           <p className="text-muted-foreground">{tier.tagline}</p>
         </TooltipContent>
       </Tooltip>

@@ -1,21 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Copy, CheckCircle2, QrCode, Link2, TrendingUp, Users, Zap, ArrowRight, Share2, Gift, User, Flame, Globe, Crown, Gem } from "lucide-react";
+import { Copy, CheckCircle2, QrCode, Link2, TrendingUp, Users, Zap, ArrowRight, Share2, Gift } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "@/hooks/useAuth";
 import { useReferralNetwork } from "@/hooks/useReferralNetwork";
-import { getAllNetworkTiers, getReferralsToNextTier, getProRewardText, getCommissionExplanation, type NetworkTier, type NetworkTierMeta } from "@/lib/referralEngine";
+import { getAllNetworkTiers, getReferralsToNextTier, getProRewardText } from "@/lib/referralEngine";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect } from "react";
-import { SEO } from "@/components/SEO";
 import { useNavigate } from "react-router-dom";
+import { SEO } from "@/components/SEO";
 import { FeaturePageHeader } from "@/components/features/FeaturePageHeader";
 import { StudioFeatureShell } from "@/components/studio-reference/StudioFeatureShell";
+import { HoloCard } from "@/components/passport/HoloCard";
+import { KretoCharacter } from "@/components/brand/KretoCharacter";
 import type { TutorialStep } from "@/components/landing/kretopia/FeatureTutorial";
 
 const CREATIVE_CIRCLE_TUTORIAL: TutorialStep[] = [
@@ -24,18 +25,35 @@ const CREATIVE_CIRCLE_TUTORIAL: TutorialStep[] = [
   { icon: Gift, title: "Earn passive commission", body: "From Kretopia's service fee when your referrals complete paid gigs — they keep 100% of their earnings." },
 ];
 
-// referralEngine.ts's tier icons are emoji strings, still used as-is by
-// InviteCircleCard, dashboard/InviteCard and the Passport-adjacent
-// CreativeCircleBadge -- none of that shared data is touched here. This is a
-// local, page-only mapping to the app's real icon system for this surface only.
-const TIER_ICON: Record<NetworkTier, React.ComponentType<{ className?: string }>> = {
-  none: User,
-  spark: Zap,
-  connector: Link2,
-  catalyst: Flame,
-  networker: Globe,
-  mogul: Crown,
-  icon: Gem,
+/**
+ * One circular medallion, reused for the current-tier hero (large) and
+ * every row in the Tier Rewards list (small) -- a single visual language
+ * for "this is a tier badge" instead of a plain icon-plus-label row, and
+ * one place to keep it consistent rather than two hand-built treatments.
+ */
+const TierMedallion = ({
+  tier,
+  size = "md",
+  active = true,
+}: {
+  tier: ReturnType<typeof getAllNetworkTiers>[number];
+  size?: "sm" | "md" | "lg";
+  active?: boolean;
+}) => {
+  const dims = size === "lg" ? "h-16 w-16" : size === "md" ? "h-11 w-11" : "h-9 w-9";
+  const iconDims = size === "lg" ? "h-7 w-7" : size === "md" ? "h-5 w-5" : "h-4 w-4";
+  return (
+    <div
+      className={cn(
+        "relative shrink-0 rounded-full flex items-center justify-center border bg-gradient-to-br",
+        dims,
+        active ? tier.gradient : "from-muted/30 to-muted/5",
+        active ? tier.ringClass.replace("ring-", "border-") : "border-border",
+      )}
+    >
+      <tier.icon className={cn(iconDims, active ? tier.color : "text-muted-foreground")} aria-hidden />
+    </div>
+  );
 };
 
 const CreativeCircle = () => {
@@ -92,7 +110,6 @@ const CreativeCircle = () => {
 
   const nextTierInfo = getReferralsToNextTier(network.referralCount);
   const allTiers = getAllNetworkTiers().filter(t => t.tier !== "none");
-  const CurrentTierIcon = TIER_ICON[network.tier.tier];
 
   const progressPercent = nextTierInfo
     ? Math.min(100, ((network.referralCount - network.tier.minReferrals) / (nextTierInfo.next.minReferrals - network.tier.minReferrals)) * 100)
@@ -112,59 +129,80 @@ const CreativeCircle = () => {
 
       <StudioFeatureShell>
 
-      {/* Hero — Current Tier */}
-      <div className={cn("rounded-2xl p-6 bg-gradient-to-br border", network.tier.gradient, "border-border/50")}>
-        <div className="flex items-center gap-4 mb-4">
-          <CurrentTierIcon className={cn("h-9 w-9 shrink-0", network.tier.color)} />
-          <div className="flex-1">
-            <p className={cn("text-sm font-semibold", network.tier.color)}>
-              {network.tier.label} — {network.tier.tagline}
-            </p>
-          </div>
-          <Badge variant="secondary" className="text-sm font-bold">
-            {network.referralCount}
-          </Badge>
-        </div>
-
-        {/* Progress to next */}
-        {nextTierInfo && (
-          <div className="space-y-2">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <TrendingUp className="h-3 w-3" />
-                {nextTierInfo.remaining} more to {nextTierInfo.next.icon} {nextTierInfo.next.label}
-              </span>
-              <span>{network.referralCount}/{nextTierInfo.next.minReferrals}</span>
+      {/* Hero — Current Tier, as a real Passport-grade identity surface
+          (same HoloCard treatment as the owner Passport / Today's mini
+          Passport / New Room's celebration) instead of a plain
+          gradient div -- this is Kretopia's one dominant status badge
+          for the feature, so it gets the one dominant status treatment. */}
+      <HoloCard maxTilt={6}>
+        <div className={cn("relative overflow-hidden rounded-2xl border border-border bg-card p-5", network.tier.tier !== "none" && "shadow-glow")}>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-60"
+            style={{ background: `radial-gradient(60% 55% at 85% 0%, hsl(var(--energy) / 0.14), transparent 65%)` }}
+          />
+          <div className="relative flex items-center gap-4">
+            <TierMedallion tier={network.tier} size="lg" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Your Circle rank</p>
+              <p className={cn("text-xl font-black tracking-[-0.02em]", network.tier.color)}>{network.tier.label}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{network.tier.tagline}</p>
             </div>
-            <Progress value={progressPercent} className="h-2.5" />
+            <div className="text-right shrink-0">
+              <p className="text-2xl font-black leading-none">{network.referralCount}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Invited</p>
+            </div>
           </div>
-        )}
 
-        {/* Active rewards */}
-        {network.tier.tier !== "none" && (
-          <div className="flex flex-wrap gap-2 mt-4">
-            {network.tier.rewards.freeProMonths !== 0 && (
-              <Badge className="bg-primary/10 text-primary border-primary/20">
-                <Gift className="h-3 w-3 mr-1" />
-                {getProRewardText(network.tier)}
+          {/* Progress to next */}
+          {nextTierInfo && (
+            <div className="relative space-y-2 mt-5">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <TrendingUp className="h-3 w-3" />
+                  {nextTierInfo.remaining} more to <nextTierInfo.next.icon className="h-3 w-3" aria-hidden /> {nextTierInfo.next.label}
+                </span>
+                <span>{network.referralCount}/{nextTierInfo.next.minReferrals}</span>
+              </div>
+              <Progress value={progressPercent} className="h-2.5" />
+            </div>
+          )}
+
+          {/* Active rewards */}
+          {network.tier.tier !== "none" && (
+            <div className="relative flex flex-wrap gap-2 mt-4">
+              {network.tier.rewards.freeProMonths !== 0 && (
+                <Badge className="bg-primary/10 text-primary border-primary/20">
+                  <Gift className="h-3 w-3 mr-1" />
+                  {getProRewardText(network.tier)}
+                </Badge>
+              )}
+              {network.tier.rewards.feeDiscount > 0 && (
+                <Badge className="border-primary/20 bg-primary/10 text-primary">
+                  {network.tier.rewards.feeDiscount}% off fees
+                </Badge>
+              )}
+              {network.tier.rewards.commissionRate > 0 && (
+                <Badge style={{ backgroundColor: "hsl(var(--accent-pay)/0.1)", color: "hsl(var(--accent-pay))", borderColor: "hsl(var(--accent-pay)/0.2)" }}>
+                  {network.tier.rewards.commissionRate}% commission
+                </Badge>
+              )}
+              <Badge className="bg-muted text-muted-foreground">
+                +{network.tier.rewards.statusBonusPoints} Status pts
               </Badge>
-            )}
-            {network.tier.rewards.feeDiscount > 0 && (
-              <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                {network.tier.rewards.feeDiscount}% off fees
-              </Badge>
-            )}
-            {network.tier.rewards.commissionRate > 0 && (
-              <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20">
-                {network.tier.rewards.commissionRate}% commission
-              </Badge>
-            )}
-            <Badge className="bg-muted text-muted-foreground">
-              +{network.tier.rewards.statusBonusPoints} Status pts
-            </Badge>
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+
+          {/* Kreto, cheering the climb on -- same mascot presence used on
+              Today and New Room, absent only for a brand-new member with
+              nothing yet to celebrate. */}
+          {network.tier.tier !== "none" && (
+            <div className="absolute right-3 bottom-0 hidden sm:block opacity-90 pointer-events-none" aria-hidden>
+              <KretoCharacter variant="main" size={84} floatAmplitude={2} floatDuration={9} />
+            </div>
+          )}
+        </div>
+      </HoloCard>
 
       {/* Network Stats — commission is shown as one honest lifetime-earned
           total. The schema has no pending/eligible/approved/paid breakdown,
@@ -264,7 +302,6 @@ const CreativeCircle = () => {
         {allTiers.map((tier) => {
           const isActive = tier.tier === network.tier.tier;
           const isUnlocked = network.referralCount >= tier.minReferrals;
-          const TierIcon = TIER_ICON[tier.tier];
           return (
             <Card
               key={tier.tier}
@@ -276,8 +313,8 @@ const CreativeCircle = () => {
               )}
             >
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2.5">
-                  <TierIcon className={cn("h-5 w-5 shrink-0", isActive ? tier.color : "text-muted-foreground")} />
+                <div className="flex items-center gap-3">
+                  <TierMedallion tier={tier} size="sm" active={isUnlocked} />
                   <div>
                     <span className={cn("font-bold", isActive ? tier.color : "text-foreground")}>{tier.label}</span>
                     <span className="text-xs text-muted-foreground ml-2">{tier.minReferrals}+ invites</span>

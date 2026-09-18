@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNetworkStats } from "@/hooks/useNetworkStats";
 import { useReferralNetwork } from "@/hooks/useReferralNetwork";
 import { getReferralsToNextTier } from "@/lib/referralEngine";
+import { cn } from "@/lib/utils";
 import { NetworkReachStats } from "./NetworkReachStats";
 import { NetworkHealthScore } from "./NetworkHealthScore";
 import { IndustryMap } from "./IndustryMap";
@@ -35,7 +36,7 @@ const CreativeCircleCTA = ({ onInvite }: { onInvite: () => void }) => {
   return (
     <Card className="p-4 mb-4 bg-gradient-to-br from-primary/5 via-accent/5 to-primary/10 border-primary/20">
       <div className="flex items-center gap-3 mb-2">
-        <span className="text-2xl">{network.tier.icon}</span>
+        <network.tier.icon className={cn("h-6 w-6", network.tier.color)} aria-hidden />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="font-bold text-sm">Creative Circle</p>
@@ -44,7 +45,7 @@ const CreativeCircleCTA = ({ onInvite }: { onInvite: () => void }) => {
           {nextTierInfo ? (
             <p className="text-[11px] text-muted-foreground flex items-center gap-1">
               <TrendingUp className="h-3 w-3" />
-              {nextTierInfo.remaining} more to {nextTierInfo.next.icon} {nextTierInfo.next.label}
+              {nextTierInfo.remaining} more to <nextTierInfo.next.icon className="h-3 w-3 inline" aria-hidden /> {nextTierInfo.next.label}
             </p>
           ) : (
             <p className="text-[11px] text-muted-foreground">{network.tier.tagline}</p>
