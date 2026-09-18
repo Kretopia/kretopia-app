@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, Bell, Calendar, Check, LayoutGrid, MessageSquare } from "lucide-react";
+import { ArrowRight, Bell, Calendar, Check, LayoutGrid, MessageSquare, BriefcaseBusiness, CircleCheckBig } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -112,7 +112,24 @@ export function TodayOpportunities({ signals, onSignalsChanged, peopleForYou, sh
   );
 
   return (
-    <TodaySectionShell icon={<LayoutGrid className="h-4 w-4" />} eyebrow="Next moves" title="What's next">
+    <TodaySectionShell icon={<LayoutGrid className="h-4 w-4" />} eyebrow="AI-powered creator radar" title="Your work, in focus">
+      <div className="mb-4 grid grid-cols-3 divide-x divide-border overflow-hidden rounded-xl border border-border bg-background/60">
+        <div className="px-2 py-3 text-center">
+          <CircleCheckBig className="mx-auto h-4 w-4 text-primary" />
+          <p className="mt-1 text-lg font-black text-foreground">{signals.momentum?.completedThisWeek ?? 0}</p>
+          <p className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground">Completed</p>
+        </div>
+        <div className="px-2 py-3 text-center">
+          <BriefcaseBusiness className="mx-auto h-4 w-4 text-primary" />
+          <p className="mt-1 text-lg font-black text-foreground">{signals.momentum?.activeProjects.length ?? 0}</p>
+          <p className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground">Projects</p>
+        </div>
+        <div className="px-2 py-3 text-center">
+          <MessageSquare className="mx-auto h-4 w-4 text-primary" />
+          <p className="mt-1 text-lg font-black text-foreground">{unreadMessages}</p>
+          <p className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground">Messages</p>
+        </div>
+      </div>
       <div role="tablist" aria-label="Filter next moves" className="flex flex-wrap gap-1.5 mb-4">
         {tabs.map((t) => (
           <button

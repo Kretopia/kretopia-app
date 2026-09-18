@@ -1,12 +1,10 @@
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
-import { Radio } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { BrandLoader } from "@/components/brand/BrandDots";
 import { checkProfileCompletion } from "@/lib/profileCompletion";
 import { TodayCommandCenter } from "./TodayCommandCenter";
-import { TodayMomentum } from "./TodayMomentum";
 import { TodayOpportunities } from "./TodayOpportunities";
 import { useTodaySignals } from "./today.selectors";
 import type { ProfileRow } from "./today.types";
@@ -49,11 +47,6 @@ export function TodayDashboard({ firstName, peopleForYou, profile, profileFull, 
     // partially covered until the user scrolls. Verified visually at
     // 375px width: Complete/Snooze fully clear the composer bar with this.
     <div className="space-y-4 pb-28">
-      <div className="flex items-center gap-1.5 px-0.5">
-        <Radio className="h-3 w-3 animate-pulse" style={{ color: "hsl(var(--energy))" }} />
-        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Live</span>
-      </div>
-
       {signals.loading ? (
         <div className="flex items-center justify-center py-16" aria-busy="true">
           <BrandLoader />
@@ -69,21 +62,13 @@ export function TodayDashboard({ firstName, peopleForYou, profile, profileFull, 
             animate={{ opacity: 1, y: 0 }}
             transition={reducedMotion ? { duration: 0 } : { duration: 0.4, ease: [0.2, 0.65, 0.3, 0.95] }}
           >
-            <TodayCommandCenter firstName={firstName} signals={signals} onSignalsChanged={refresh} />
+            <TodayCommandCenter firstName={firstName} profile={effectiveProfile} creditCount={myCredits} signals={signals} onSignalsChanged={refresh} />
           </motion.div>
 
           <motion.div
             initial={reducedMotion ? false : { opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={reducedMotion ? { duration: 0 } : { duration: 0.4, delay: 0.06, ease: [0.2, 0.65, 0.3, 0.95] }}
-          >
-            <TodayMomentum signals={signals} />
-          </motion.div>
-
-          <motion.div
-            initial={reducedMotion ? false : { opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={reducedMotion ? { duration: 0 } : { duration: 0.4, delay: 0.12, ease: [0.2, 0.65, 0.3, 0.95] }}
           >
             <TodayOpportunities
               signals={signals}
