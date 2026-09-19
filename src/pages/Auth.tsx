@@ -327,7 +327,12 @@ const Auth = () => {
     else trackSigninAttempt(authEntrySource, provider);
 
     try {
-      const siteUrl = import.meta.env.VITE_SITE_URL || 'https://kretopia.com';
+      // window.location.origin (not a hardcoded domain) so this matches
+      // whatever host actually served the page -- preview, www.kretopia.com,
+      // or the bare apex -- instead of a fixed guess that only matched one
+      // of them and got the OAuth broker's redirect_uri allowlist check
+      // rejected (400) from every other host.
+      const siteUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
       const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: siteUrl });
 
       if ('redirected' in result && result.redirected) return;

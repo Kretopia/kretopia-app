@@ -45,7 +45,10 @@ export const OAuthQuickButtons = ({
       const { analytics } = await import("@/lib/analytics");
       analytics.featureUsed(`${provider}_signin_attempt_${analyticsSuffix}`);
 
-      const siteUrl = import.meta.env.VITE_SITE_URL || "https://kretopia.com";
+      // window.location.origin, not a hardcoded domain -- see Auth.tsx's
+      // own handleOAuthSignIn for why (redirect_uri must match whatever
+      // host actually served the page or the OAuth broker 400s it).
+      const siteUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
       const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: siteUrl });
 
       if ("redirected" in result && result.redirected) return;
