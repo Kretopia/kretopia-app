@@ -589,10 +589,16 @@ const Navbar = memo(({ user }: NavbarProps) => {
                   Hire Talent
                 </Button>
               </Link>
+              {/* Icon-only below sm: — logo + search + theme toggle + hamburger
+                  already fill a 375px-wide phone screen, and the full label
+                  pushed this button's right edge ~17px past the viewport
+                  edge. The label returns at sm: where there's room; the
+                  action is also always reachable from the guest hamburger
+                  menu above, so nothing is lost, just condensed. */}
               <Link to="/auth?tab=signup">
-                <Button variant="link" size="sm" className="nav-btn-plain bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 text-xs sm:text-sm px-2.5 sm:px-4 font-semibold no-underline hover:no-underline">
+                <Button variant="link" size="sm" aria-label="Build Your Passport" className="nav-btn-plain bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 text-xs sm:text-sm px-2.5 sm:px-4 font-semibold no-underline hover:no-underline">
                   <Sparkles className="h-4 w-4" aria-hidden />
-                  Build Your Passport
+                  <span className="hidden sm:inline">Build Your Passport</span>
                 </Button>
               </Link>
             </>
