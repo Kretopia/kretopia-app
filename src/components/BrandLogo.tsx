@@ -7,7 +7,11 @@ import wordmarkAsset from "@/assets/brand/kretopia-wordmark.png.asset.json";
 interface BrandLogoProps {
   size?: "sm" | "md" | "lg";
   showBeta?: boolean;
-  linkToHome?: boolean;
+  /** true links to "/" (default, back-compat); a string links there instead
+   *  -- e.g. Navbar passes "/landing" so the logo always reaches the real
+   *  marketing page, even for a signed-in user (for whom "/" itself renders
+   *  their Today dashboard, not the guest landing content). */
+  linkToHome?: boolean | string;
   className?: string;
   /** Show only the wordmark image ("kretopia") */
   textOnly?: boolean;
@@ -68,7 +72,7 @@ export function BrandLogo({
 
   if (linkToHome) {
     return (
-      <Link to="/" aria-label="Kretopia Home">
+      <Link to={typeof linkToHome === "string" ? linkToHome : "/"} aria-label="Kretopia Home">
         {content}
       </Link>
     );
