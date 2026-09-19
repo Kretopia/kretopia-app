@@ -58,21 +58,32 @@ const LINE_2 = ["what", "you", "do."];
  *  the text entirely; the rest stay inside the margin that's clear even
  *  at the tightest desktop width this renders at (exactly `lg`, 1024px,
  *  ~62px outside the centered max-w-[900px] column before its own
- *  internal padding even starts). No float, no hover-knock on any of
- *  these -- "annule l'effet ballons et rends les fixes" -- so none of
- *  the props below include floatAmplitude/hoverable; every instance
- *  renders fully static. */
+ *  internal padding even starts).
+ *
+ *  Sizes now span a wider, deliberate large/medium/small range (44-96px,
+ *  vs. the previous 64-92px) per the brief's "assign different sizes ...
+ *  to create depth and hierarchy" -- every shrink (connector, publicist,
+ *  detective) reduces that instance's footprint, and the two growers
+ *  (scout, director) grow by only 2-4px, so none of this reopens the
+ *  headline-overlap checks already tuned for the previous max sizes.
+ *
+ *  Idle drift stays off ("annule l'effet ballons et rends les fixes") --
+ *  none of the props below include floatAmplitude -- but a real pointer
+ *  now gets a small, refined hover response (see HoverVibrate below),
+ *  per newer direct feedback asking for exactly that back in, distinct
+ *  from the old floatAmplitude/hoverable "knock to a random spot" effect
+ *  this component still offers (unused here). */
 const HERO_FLOATERS: Array<{
   variant: KretoCharacterVariant;
   size: number;
   className: string;
 }> = [
-  { variant: "scout", size: 92, className: "top-16 left-10" },
-  { variant: "connector", size: 90, className: "top-16 right-10" },
-  { variant: "producer", size: 88, className: "bottom-16 left-10" },
-  { variant: "publicist", size: 86, className: "top-72 left-4" },
-  { variant: "director", size: 76, className: "top-4 left-[36%]" },
-  { variant: "detective", size: 64, className: "bottom-4 right-[36%]" },
+  { variant: "scout", size: 96, className: "top-16 left-10" },
+  { variant: "connector", size: 56, className: "top-16 right-10" },
+  { variant: "producer", size: 90, className: "bottom-16 left-10" },
+  { variant: "publicist", size: 48, className: "top-72 left-4" },
+  { variant: "director", size: 78, className: "top-4 left-[36%]" },
+  { variant: "detective", size: 44, className: "bottom-4 right-[36%]" },
 ];
 
 interface KretopiaHeroProps {
@@ -305,20 +316,38 @@ export const KretopiaHero = (_props: KretopiaHeroProps) => {
       </div>
 
       {/* Kreto's real, owned character render (KRETO_CHARACTER_ASSET_REPORT.md)
-          -- 6 satellite role variants plus the big main figure, all fully
-          static per direct feedback cancelling the earlier balloon-hover
-          effect ("annule l'effet ballons et rends les fixes"). Desktop
-          only (lg+): the content column fills nearly the full width below
-          that breakpoint (confirmed in LANDING_HERO_AVATAR_ASSET_AUDIT.md),
-          so there's no genuine peripheral space for any of this without
-          risking overlap on tablet/mobile. */}
+          -- 6 satellite role variants plus the big main figure. Idle drift
+          stays off per earlier direct feedback cancelling the balloon-hover
+          effect ("annule l'effet ballons et rends les fixes"), but a real
+          pointer now gets a small, refined vibration -- a short rotate/
+          translate shake that plays once on hover-in and settles back out,
+          not a continuous jitter (would read as distracting, and "subtle"
+          was the explicit ask). Pure transform, so it can never shift
+          layout or cause CLS. Skipped entirely under reduced motion.
+          Desktop only (lg+): the content column fills nearly the full
+          width below that breakpoint (confirmed in
+          LANDING_HERO_AVATAR_ASSET_AUDIT.md), so there's no genuine
+          peripheral space for any of this without risking overlap on
+          tablet/mobile. pointer-events-auto (unlike the old none) is what
+          lets these actually receive the hover in the first place; each
+          instance sits in its own clear margin (see HERO_FLOATERS' own
+          comment) so this can't steal a click meant for anything else. */}
       {HERO_FLOATERS.map((floater, i) => (
-        <div
+        <motion.div
           key={`${floater.variant}-${i}`}
-          className={cn("pointer-events-none absolute hidden lg:block opacity-90", floater.className)}
+          className={cn("pointer-events-auto absolute hidden lg:block opacity-90 cursor-default", floater.className)}
+          whileHover={
+            reducedMotion
+              ? undefined
+              : {
+                  rotate: [0, -4, 4, -3, 3, -1, 1, 0],
+                  x: [0, -1.5, 1.5, -1, 1, 0],
+                  transition: { duration: 0.5, ease: "easeInOut" },
+                }
+          }
         >
           <KretoCharacter variant={floater.variant} size={floater.size} floatAmplitude={0} />
-        </div>
+        </motion.div>
       ))}
       {/* The main figure stays fixed (no idle drift, no hover-knock),
           shifted further left and bigger per direct feedback -- but a

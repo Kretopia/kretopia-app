@@ -14,21 +14,19 @@
  * happening) plus the same paired sr-only text announcement -- state is
  * still never color/motion alone.
  *
- * "main" uses a real alpha-channel cutout (background removed via
- * ML segmentation, not a CSS fade) -- direct feedback flagged the
- * earlier CSS radial-mask approach as still reading like "a pasted
- * image with a visible box", which is real: a soft edge fade can
- * never fully hide a rectangular source photo's corners. A true cutout
- * has no box to hide in the first place. The source photo's own ground
- * shadow was removed by the segmentation along with the rest of the
- * background (it wasn't part of the character's solid silhouette) --
- * a separate, deliberate CSS radial-gradient "grounding" ellipse
- * beneath the character replaces it, giving the same "standing on
- * something" feel without depending on a baked-in shadow that only
- * ever looked right against one exact background. The four role
- * variants still render inside a rounded-square tile, matching their
- * own presentation in the source artwork -- a defined edge is correct
- * there, not a flaw to hide.
+ * Every variant now uses a real alpha-channel cutout (background
+ * removed) -- direct feedback flagged the earlier CSS radial-mask
+ * approach on "main" as still reading like "a pasted image with a
+ * visible box", which is real: a soft edge fade can never fully hide a
+ * rectangular source photo's corners. A true cutout has no box to hide
+ * in the first place. The four role variants (Scout, Connector,
+ * Producer, Publicist) originally kept their source rounded-square
+ * tile treatment; a later pass ("remove the background behind the Kreto
+ * Robots") replaced those tiles with the same free, local flood-fill
+ * cutout pipeline already used for "main"/"director"/"detective" --
+ * see git history for the removed source JPGs. "main"'s own grounding
+ * shadow stays specific to that one variant, not extended to the
+ * others, since it was tuned for that exact pose/base.
  *
  * `hoverable` makes the cast feel alive to a real pointer, per direct
  * feedback ("comme des ballons... flotter dans l'air"): idle motion
@@ -42,10 +40,10 @@ import { motion } from "framer-motion";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { cn } from "@/lib/utils";
 import kretoMain from "@/assets/brand/kreto/kreto-main-cutout.png";
-import kretoScout from "@/assets/brand/kreto/kreto-scout.jpg";
-import kretoConnector from "@/assets/brand/kreto/kreto-connector.jpg";
-import kretoProducer from "@/assets/brand/kreto/kreto-producer.jpg";
-import kretoPublicist from "@/assets/brand/kreto/kreto-publicist.jpg";
+import kretoScout from "@/assets/brand/kreto/kreto-scout-cutout.png";
+import kretoConnector from "@/assets/brand/kreto/kreto-connector-cutout.png";
+import kretoProducer from "@/assets/brand/kreto/kreto-producer-cutout.png";
+import kretoPublicist from "@/assets/brand/kreto/kreto-publicist-cutout.png";
 import kretoDirector from "@/assets/brand/kreto/kreto-director-mic.png";
 import kretoDetective from "@/assets/brand/kreto/kreto-detective-scout.png";
 
@@ -81,14 +79,15 @@ const VARIANT_LABEL: Record<KretoCharacterVariant, string> = {
   detective: "Kreto — Detective",
 };
 
-/** Variants with a real alpha-channel cutout (background removed), same
- *  treatment as "main" -- no rounded-tile card, no border/shadow, free-
- *  floating silhouette. The original four role variants are plain
- *  photographic stills (their own background still visible) and keep
- *  the rounded-square tile treatment below; "main"'s own grounding
- *  shadow stays specific to that one variant, not extended here, since
- *  it was tuned for that exact pose/base. */
-const CUTOUT_VARIANTS = new Set<KretoCharacterVariant>(["main", "director", "detective"]);
+/** Every variant is a real alpha-channel cutout (background removed) --
+ *  no rounded-tile card, no border/shadow, free-floating silhouette.
+ *  Kept as an explicit set (rather than just "always true") so a future
+ *  variant added without a real cutout asset still gets the tile
+ *  treatment by default instead of silently rendering a raw rectangular
+ *  photo with no mask. */
+const CUTOUT_VARIANTS = new Set<KretoCharacterVariant>([
+  "main", "scout", "connector", "producer", "publicist", "director", "detective",
+]);
 
 /** Same wording as KretoPresence's STATE_LABEL, kept in sync deliberately
  *  -- one honest vocabulary for "what is Kreto doing", regardless of
