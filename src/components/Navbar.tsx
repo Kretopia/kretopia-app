@@ -1,5 +1,6 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   LogOut, Menu, Settings, Users, User, Briefcase, MessageCircle, Shield, Crown, Sparkles,
@@ -51,7 +52,17 @@ const Navbar = memo(({ user }: NavbarProps) => {
   const [guestMenuOpen, setGuestMenuOpen] = useState(false);
   const [accountType, setAccountType] = useState<"individual" | "company">("individual");
   const [isManagerMode, setIsManagerMode] = useState(false);
-  const isLandingPage = location.pathname === "/" && !user;
+  // Only for the /landing connected-avatar trigger below -- everywhere
+  // else the account menu opens off a plain Menu icon, not a photo.
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarName, setAvatarName] = useState<string>("");
+  // Route-only, not gated by !user: a signed-in user reaching /landing
+  // (via the Navbar's own logo, see below) should get this same marketing
+  // chrome -- normal app nav/icons hidden, connected-avatar trigger instead
+  // of the Sign Up/Log In CTAs -- not the full authenticated nav that
+  // renders literally everywhere else, "/" included (which is their Today
+  // dashboard, a different page from this one despite the shared name).
+  const isLandingPage = location.pathname === "/landing";
   // Spotlight/Verified Credits/About used to force a #05070D background on
   // their own hero (EditorialPageHero) regardless of theme, so the navbar
   // had to force-match dark chrome on those three routes too or the two
@@ -93,12 +104,14 @@ const Navbar = memo(({ user }: NavbarProps) => {
     Promise.resolve(
       supabase
         .from("profiles")
-        .select("account_type, is_manager_mode")
+        .select("account_type, is_manager_mode, avatar_url, full_name")
         .eq("user_id", user.id)
         .maybeSingle()
     ).then(({ data }) => {
       if (data?.account_type) setAccountType(data.account_type);
       if (data?.is_manager_mode) setIsManagerMode(true);
+      setAvatarUrl(data?.avatar_url ?? null);
+      setAvatarName(data?.full_name ?? "");
     }).catch(err => console.warn('[Navbar] Error loading profile:', err));
   }, [user?.id]);
 
@@ -192,7 +205,7 @@ const Navbar = memo(({ user }: NavbarProps) => {
     >
       <div className="container mx-auto flex items-center justify-between gap-1 px-2 sm:px-4 py-2.5">
         <div className="shrink-0">
-          <BrandLogo size="md" showBeta linkToHome onDark={isDarkChromeRoute} />
+          <BrandLogo size="md" showBeta linkToHome="/landing" onDark={isDarkChromeRoute} />
         </div>
 
         {/* Global search — reachable from every route, including the guest
@@ -322,17 +335,38 @@ const Navbar = memo(({ user }: NavbarProps) => {
           )}
           {!user && !isLandingPage && <ThemeToggle />}
           
-          {user && !isLandingPage ? (
+          {user ? (
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
               <SheetTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Open menu"
-                  className={cn("h-8 w-8 sm:h-10 sm:w-10", isDarkChromeRoute && "text-white hover:text-white hover:bg-white/10")}
-                >
-                  <Menu className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
-                </Button>
+                {isLandingPage ? (
+                  // Connected state on the marketing page itself: a small
+                  // avatar instead of the Sign Up/Log In CTAs a guest sees
+                  // here, and instead of the plain Menu icon this same
+                  // Sheet opens off everywhere else in the app -- the one
+                  // visible sign, right on the landing page, that this is
+                  // your account and not a fresh visit.
+                  <button
+                    type="button"
+                    aria-label="Account menu"
+                    className="rounded-full shrink-0 ring-2 ring-white/25 hover:ring-white/50 transition-all"
+                  >
+                    <Avatar className="h-8 w-8 sm:h-9 sm:w-9">
+                      <AvatarImage src={avatarUrl ?? undefined} alt="" />
+                      <AvatarFallback className="text-xs font-semibold">
+                        {avatarName ? avatarName.charAt(0).toUpperCase() : <User className="h-4 w-4" />}
+                      </AvatarFallback>
+                    </Avatar>
+                  </button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Open menu"
+                    className={cn("h-8 w-8 sm:h-10 sm:w-10", isDarkChromeRoute && "text-white hover:text-white hover:bg-white/10")}
+                  >
+                    <Menu className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
+                  </Button>
+                )}
               </SheetTrigger>
               <SheetContent side="right" className="w-[85vw] sm:w-[400px] bg-background text-foreground border-l border-border">
                 <SheetHeader className="pr-8 text-left">

@@ -155,6 +155,7 @@ const CreditsDashboard = lazy(() => import("./pages/CreditsDashboard"));
 const ICDBProjectPage = lazy(() => import("./pages/ICDBProjectPage"));
 const BrandVerify = lazy(() => import("./pages/BrandVerify"));
 const WorkHome = lazy(() => import("./pages/WorkHome"));
+const Welcome = lazy(() => import("./pages/Welcome"));
 const NewRoomPage = lazy(() => import("./pages/NewRoomPage"));
 const CreativeCircle = lazy(() => import("./pages/CreativeCircle"));
 const Ambassadors = lazy(() => import("./pages/Ambassadors"));
@@ -306,7 +307,7 @@ const AppContent = () => {
           <Routes>
             {/* Active MVP Routes */}
             <Route path="/" element={<DefaultRoute />} />
-            <Route path="/landing" element={<Navigate to="/" replace />} />
+            <Route path="/landing" element={<Welcome />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
             <Route path="/claim" element={<Claim />} />
