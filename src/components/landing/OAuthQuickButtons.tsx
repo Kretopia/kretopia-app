@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { lovable } from "@/integrations/lovable/index";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
@@ -45,22 +45,21 @@ export const OAuthQuickButtons = ({
       const { analytics } = await import("@/lib/analytics");
       analytics.featureUsed(`${provider}_signin_attempt_${analyticsSuffix}`);
 
-      // window.location.origin, not a hardcoded domain -- see Auth.tsx's
-      // own handleOAuthSignIn for why (redirect_uri must match whatever
-      // host actually served the page or the OAuth broker 400s it).
-      const siteUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
-      const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: siteUrl });
+      // Supabase's own OAuth, not Lovable's broker -- see Auth.tsx's
+      // handleOAuthSignIn for why. No popup/iframe here either, so no
+      // "cancelled" or "blocked" state to special-case: supabase-js
+      // assigns window.location.href itself on success, and the only
+      // thing left to handle is an error returned before that redirect
+      // ever starts.
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: window.location.origin },
+      });
 
-      if ("redirected" in result && result.redirected) return;
-
-      if (result.error) {
-        const msg = result.error.message || "";
-        if (msg.includes("cancelled")) { setInternalLoading(null); return; }
+      if (error) {
         toast({
           title: `${provider === "google" ? "Google" : "Apple"} sign-in unavailable`,
-          description: msg.includes("blocked")
-            ? "Please allow pop-ups or open the app in a new tab."
-            : "Try again or use email sign-up.",
+          description: "Try again or use email sign-up.",
           variant: "destructive",
         });
         setInternalLoading(null);

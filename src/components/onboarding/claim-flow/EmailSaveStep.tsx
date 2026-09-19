@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Mail, ArrowLeft, CheckCircle2, LogIn } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { lookupAuthProviders, providerLabel } from "@/lib/authProviderHints";
 import { toast } from "sonner";
 import type { ClaimedCredit, DraftProfile } from "./types";
@@ -52,12 +51,16 @@ export const EmailSaveStep = ({ profile, credits, onBack, redirectAfter = "/prof
           JSON.stringify({ profile, credits, redirectAfter }),
         );
       } catch {}
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: `${window.location.origin}${redirectAfter}`,
+      // Supabase's own OAuth, not Lovable's broker -- see Auth.tsx's
+      // handleOAuthSignIn for why. supabase-js assigns window.location.href
+      // itself on success, so there's nothing to do after the call besides
+      // handling an error returned before that redirect starts.
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}${redirectAfter}` },
       });
-      if ("redirected" in result && result.redirected) return;
-      if (result.error) {
-        toast.error(result.error.message || "Google sign-in failed");
+      if (error) {
+        toast.error(error.message || "Google sign-in failed");
         setGoogleLoading(false);
       }
     } catch (e: any) {

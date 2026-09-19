@@ -4,7 +4,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Lock, Sparkles, User, Briefcase } from "lucide-react";
@@ -327,44 +326,33 @@ const Auth = () => {
     else trackSigninAttempt(authEntrySource, provider);
 
     try {
-      // window.location.origin (not a hardcoded domain) so this matches
-      // whatever host actually served the page -- preview, www.kretopia.com,
-      // or the bare apex -- instead of a fixed guess that only matched one
-      // of them and got the OAuth broker's redirect_uri allowlist check
-      // rejected (400) from every other host.
-      const siteUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
-      const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: siteUrl });
+      // Supabase's own OAuth, not Lovable's broker -- Lovable's provider
+      // config lives behind "Lovable Cloud", a separate paid backend layer
+      // this project doesn't use (it runs on its own external Supabase
+      // project already). Calling Supabase directly needs no Lovable
+      // credits and no second backend; Google/Apple just need to be
+      // enabled with real client credentials in Supabase's own (free)
+      // Authentication > Providers page.
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: window.location.origin },
+      });
 
-      if ('redirected' in result && result.redirected) return;
-
-      if (result.error) {
-        const errorMsg = result.error.message;
-        if (errorMsg.includes("cancelled")) { setLoadingFn(false); return; }
-        if (errorMsg.includes("Popup was blocked") || errorMsg.includes("blocked")) {
-          analytics.errorOccurred(`${provider}_signin`, "popup_blocked", "auth");
-          if (isSignupIntent) trackSignupError(authEntrySource, provider, "provider_error");
-          else trackSigninError(authEntrySource, provider, "provider_error");
-          toast({ title: "Pop-up Blocked", description: "Please allow pop-ups for this site or try opening the app in a new tab.", variant: "destructive" });
-          setLoadingFn(false); return;
-        }
-        if (errorMsg.includes("Preview mode") || errorMsg.includes("not supported")) {
-          if (isSignupIntent) trackSignupError(authEntrySource, provider, "provider_error");
-          else trackSigninError(authEntrySource, provider, "provider_error");
-          toast({ title: "Open in New Tab", description: `${provider === "google" ? "Google" : "Apple"} sign-in works best when the app is opened directly.`, variant: "destructive" });
-          setLoadingFn(false); return;
-        }
-        analytics.errorOccurred(`${provider}_signin`, errorMsg, "auth");
-        if (isSignupIntent) trackSignupError(authEntrySource, provider, categorizeAuthError(result.error));
-        else trackSigninError(authEntrySource, provider, categorizeAuthError(result.error));
-        toast({ title: `${provider === "google" ? "Google" : "Apple"} Sign-In Failed`, description: errorMsg, variant: "destructive" });
-        setLoadingFn(false); return;
-      } else {
-        analytics.signIn(provider);
-        if (isSignupIntent) trackSignupSuccess(authEntrySource, provider);
-        else trackSigninSuccess(authEntrySource, provider);
-        const { setLastSignInMethod } = await import("@/lib/authProviderHints");
-        setLastSignInMethod(provider);
-        toast({ title: "Welcome!", description: `Signed in with ${provider === "google" ? "Google" : "Apple"} successfully.` });
+      // No popup, no iframe, no "cancelled" state to detect here: unlike
+      // Lovable's broker, supabase-js just assigns window.location.href
+      // itself on success, so the only thing left to handle is an error
+      // returned before that navigation ever starts (e.g. the provider
+      // isn't enabled yet). The old "redirected: true" early return and
+      // its sibling success branch (toast + tracking) never actually ran
+      // for a real visitor either -- that only fired inside Lovable's own
+      // preview iframe, not on a real window.location redirect -- so
+      // nothing observable changes for real users here.
+      if (error) {
+        analytics.errorOccurred(`${provider}_signin`, error.message, "auth");
+        if (isSignupIntent) trackSignupError(authEntrySource, provider, categorizeAuthError(error));
+        else trackSigninError(authEntrySource, provider, categorizeAuthError(error));
+        toast({ title: `${provider === "google" ? "Google" : "Apple"} Sign-In Failed`, description: error.message, variant: "destructive" });
+        setLoadingFn(false);
       }
     } catch (err: any) {
       console.error(`${provider} sign-in error:`, err);
