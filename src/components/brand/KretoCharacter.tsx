@@ -46,8 +46,10 @@ import kretoScout from "@/assets/brand/kreto/kreto-scout.jpg";
 import kretoConnector from "@/assets/brand/kreto/kreto-connector.jpg";
 import kretoProducer from "@/assets/brand/kreto/kreto-producer.jpg";
 import kretoPublicist from "@/assets/brand/kreto/kreto-publicist.jpg";
+import kretoDirector from "@/assets/brand/kreto/kreto-director-mic.png";
+import kretoDetective from "@/assets/brand/kreto/kreto-detective-scout.png";
 
-export type KretoCharacterVariant = "main" | "scout" | "connector" | "producer" | "publicist";
+export type KretoCharacterVariant = "main" | "scout" | "connector" | "producer" | "publicist" | "director" | "detective";
 export type KretoCharacterState =
   | "idle"
   | "attentive"
@@ -65,6 +67,8 @@ const VARIANT_SRC: Record<KretoCharacterVariant, string> = {
   connector: kretoConnector,
   producer: kretoProducer,
   publicist: kretoPublicist,
+  director: kretoDirector,
+  detective: kretoDetective,
 };
 
 const VARIANT_LABEL: Record<KretoCharacterVariant, string> = {
@@ -73,7 +77,18 @@ const VARIANT_LABEL: Record<KretoCharacterVariant, string> = {
   connector: "Kreto — Connector",
   producer: "Kreto — Producer",
   publicist: "Kreto — Publicist",
+  director: "Kreto — Director",
+  detective: "Kreto — Detective",
 };
+
+/** Variants with a real alpha-channel cutout (background removed), same
+ *  treatment as "main" -- no rounded-tile card, no border/shadow, free-
+ *  floating silhouette. The original four role variants are plain
+ *  photographic stills (their own background still visible) and keep
+ *  the rounded-square tile treatment below; "main"'s own grounding
+ *  shadow stays specific to that one variant, not extended here, since
+ *  it was tuned for that exact pose/base. */
+const CUTOUT_VARIANTS = new Set<KretoCharacterVariant>(["main", "director", "detective"]);
 
 /** Same wording as KretoPresence's STATE_LABEL, kept in sync deliberately
  *  -- one honest vocabulary for "what is Kreto doing", regardless of
@@ -140,6 +155,7 @@ export const KretoCharacter = ({
 }: KretoCharacterProps) => {
   const reducedMotion = useReducedMotion();
   const isMain = variant === "main";
+  const isCutout = CUTOUT_VARIANTS.has(variant);
   const showBadge = state !== "idle" && state !== "attentive";
   // Real state, not a fake gesture: only set while the pointer is actually
   // over this element (onHoverStart/End below), cleared the moment it
@@ -206,9 +222,9 @@ export const KretoCharacter = ({
         src={VARIANT_SRC[variant]}
         alt=""
         draggable={false}
-        className={cn("relative w-full h-auto select-none", isMain ? "" : "rounded-2xl")}
+        className={cn("relative w-full h-auto select-none", isCutout ? "" : "rounded-2xl")}
         style={
-          isMain
+          isCutout
             ? undefined
             : {
                 boxShadow: "0 0 0 1px hsl(var(--border) / 0.4), 0 10px 28px -12px rgba(0,0,0,0.6)",

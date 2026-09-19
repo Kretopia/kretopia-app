@@ -43,16 +43,20 @@ import { KretoCharacter, type KretoCharacterVariant } from "@/components/brand/K
 const LINE_1 = ["Find", "work", "that", "fits"];
 const LINE_2 = ["what", "you", "do."];
 
-/** 6 satellite role variants (2 repeated) plus the big main figure
- *  (rendered separately below, not in this array) -- back up from 4 per
- *  direct feedback, bigger than before, and spread across corners, a
- *  mid-left point AND the section's own top/bottom padding bands (above
- *  the brand lockup, below the CTA/trust line) for real full-page
- *  coverage ("répartis proportionnelement partout") instead of clustering
- *  near the edges ("ça fait trop pâté"). The two padding-band entries can
- *  sit at any horizontal position because they're vertically outside the
- *  text entirely; the rest stay inside the margin that's clear even at
- *  the tightest desktop width this renders at (exactly `lg`, 1024px,
+/** 6 satellites plus the big main figure (rendered separately below, not
+ *  in this array) -- spread across corners, a mid-left point AND the
+ *  section's own top/bottom padding bands (above the brand lockup, below
+ *  the CTA/trust line) for real full-page coverage ("répartis
+ *  proportionnelement partout") instead of clustering near the edges
+ *  ("ça fait trop pâté"). The two padding-band slots used to repeat
+ *  connector/producer a second time each at an identical 60px -- direct
+ *  feedback flagged those as visibly duplicated ("robots en double") and
+ *  asked for real cutout variety and varying sizes instead, so they're
+ *  now the two new alpha-cutout variants (director, detective), each a
+ *  distinct size rather than matching pair. The two padding-band entries
+ *  can sit at any horizontal position because they're vertically outside
+ *  the text entirely; the rest stay inside the margin that's clear even
+ *  at the tightest desktop width this renders at (exactly `lg`, 1024px,
  *  ~62px outside the centered max-w-[900px] column before its own
  *  internal padding even starts). No float, no hover-knock on any of
  *  these -- "annule l'effet ballons et rends les fixes" -- so none of
@@ -67,8 +71,8 @@ const HERO_FLOATERS: Array<{
   { variant: "connector", size: 90, className: "top-16 right-10" },
   { variant: "producer", size: 88, className: "bottom-16 left-10" },
   { variant: "publicist", size: 86, className: "top-72 left-4" },
-  { variant: "connector", size: 60, className: "top-4 left-[36%]" },
-  { variant: "producer", size: 60, className: "bottom-4 right-[36%]" },
+  { variant: "director", size: 76, className: "top-4 left-[36%]" },
+  { variant: "detective", size: 64, className: "bottom-4 right-[36%]" },
 ];
 
 interface KretopiaHeroProps {
