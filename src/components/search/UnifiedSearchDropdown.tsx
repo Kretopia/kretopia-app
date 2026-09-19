@@ -575,7 +575,13 @@ export function UnifiedSearchDropdown({
           role="region"
           aria-label="Search results"
           className={cn(
-            "absolute left-0 right-0 mt-2 rounded-xl glass-surface-elevated shadow-xl z-[100] overflow-hidden",
+            // Solid bg-popover, not the translucent glass-surface-elevated
+            // treatment used elsewhere in the app -- a search results list
+            // sitting over the page's own content (hero backgrounds, other
+            // cards) needs a genuinely opaque surface to stay readable,
+            // same token every other dropdown/popover in this codebase
+            // already uses (command.tsx, context-menu.tsx, hover-card.tsx).
+            "absolute left-0 right-0 mt-2 rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-[100] overflow-hidden",
             isNavbar ? "max-h-[70vh]" : "max-h-[60vh]"
           )}
         >
