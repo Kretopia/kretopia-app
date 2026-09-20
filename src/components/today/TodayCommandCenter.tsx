@@ -94,6 +94,7 @@ export function TodayCommandCenter({ firstName, profile, creditCount = 0, signal
         accentTitle="here's what moves you forward today."
         subtitle={priorityLine(signals)}
         tutorial={{ featureKey: "today", label: "How Today works", steps: TODAY_TUTORIAL }}
+        compact
         tabs={
           <div className="flex flex-wrap items-center justify-center gap-2.5">
             <Button

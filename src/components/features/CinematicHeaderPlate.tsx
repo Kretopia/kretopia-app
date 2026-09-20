@@ -43,16 +43,22 @@ export interface CinematicHeaderPlateProps {
   cornerSlot?: ReactNode;
   /** Content below the subtitle (tabs, search bar, CTA row) -- renders outside the title's own fade-up so it's immediately interactive. */
   footer?: ReactNode;
+  /** Tighter top padding (pt-3/sm:pt-4 instead of pt-10/sm:pt-14) for a
+   *  surface that sits directly under the sticky Navbar with no separate
+   *  hero visual of its own -- Today is the first caller. Every other
+   *  feature page keeps the full padding meant to give this plate its own
+   *  breathing room as the page's actual opening beat. Default false. */
+  compact?: boolean;
 }
 
 export function CinematicHeaderPlate({
-  eyebrow, title, accentTitle, subtitle, align = "center", oneLine = true, subtitleOneLine = false, cornerSlot, footer,
+  eyebrow, title, accentTitle, subtitle, align = "center", oneLine = true, subtitleOneLine = false, cornerSlot, footer, compact = false,
 }: CinematicHeaderPlateProps) {
   const reducedMotion = useReducedMotion();
   const centered = align === "center";
 
   return (
-    <div className="relative container mx-auto max-w-5xl px-4 pt-10 pb-8 sm:pt-14 sm:pb-12">
+    <div className={`relative container mx-auto max-w-5xl px-4 pb-8 sm:pb-12 ${compact ? "pt-3 sm:pt-4" : "pt-10 sm:pt-14"}`}>
       {cornerSlot}
       <motion.div
         initial={reducedMotion ? false : { opacity: 0, y: 18 }}
