@@ -1,13 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type SignInMethod = "email" | "google" | "apple";
+export type SignInMethod = "email" | "google";
 
 const LAST_METHOD_KEY = "thrivein_last_signin_method";
 
 export const getLastSignInMethod = (): SignInMethod | null => {
   try {
     const v = localStorage.getItem(LAST_METHOD_KEY);
-    if (v === "email" || v === "google" || v === "apple") return v;
+    if (v === "email" || v === "google") return v;
   } catch {}
   return null;
 };
