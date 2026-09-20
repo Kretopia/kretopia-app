@@ -44,28 +44,41 @@ const LINE_1 = ["Find", "work", "that", "fits"];
 const LINE_2 = ["what", "you", "do."];
 
 /** 6 satellites plus the big main figure (rendered separately below, not
- *  in this array) -- spread across corners, a mid-left point AND the
- *  section's own top/bottom padding bands (above the brand lockup, below
- *  the CTA/trust line) for real full-page coverage ("répartis
- *  proportionnelement partout") instead of clustering near the edges
- *  ("ça fait trop pâté"). The two padding-band slots used to repeat
- *  connector/producer a second time each at an identical 60px -- direct
- *  feedback flagged those as visibly duplicated ("robots en double") and
- *  asked for real cutout variety and varying sizes instead, so they're
- *  now the two new alpha-cutout variants (director, detective), each a
- *  distinct size rather than matching pair. The two padding-band entries
- *  can sit at any horizontal position because they're vertically outside
- *  the text entirely; the rest stay inside the margin that's clear even
- *  at the tightest desktop width this renders at (exactly `lg`, 1024px,
- *  ~62px outside the centered max-w-[900px] column before its own
- *  internal padding even starts).
+ *  in this array) -- spread across corners AND the section's own
+ *  top/bottom padding bands (above the brand lockup, below the CTA/trust
+ *  line) for real full-page coverage ("répartis proportionnelement
+ *  partout") instead of clustering near the edges ("ça fait trop pâté").
+ *  The corner four are now a genuine 2-left/2-right split (scout+producer
+ *  vs connector+publicist) -- publicist moved from a second left-side
+ *  slot (mid-left, stacked under scout/producer, 3-vs-1 left-heavy) to
+ *  its mirror on the right, since "répartis également dans l'espace" was
+ *  the explicit ask and the left/right margins outside the centered
+ *  content column are symmetric, so a proven-safe left position mirrors
+ *  to an equally-safe right one without reopening the per-breakpoint
+ *  overlap checks below. The two padding-band entries (director,
+ *  detective) can sit at any horizontal position because they're
+ *  vertically outside the text entirely; the corner four stay inside the
+ *  margin that's clear even at the tightest desktop width this renders
+ *  at (exactly `lg`, 1024px, ~62px outside the centered max-w-[900px]
+ *  column before its own internal padding even starts).
  *
- *  Sizes now span a wider, deliberate large/medium/small range (44-96px,
- *  vs. the previous 64-92px) per the brief's "assign different sizes ...
- *  to create depth and hierarchy" -- every shrink (connector, publicist,
- *  detective) reduces that instance's footprint, and the two growers
- *  (scout, director) grow by only 2-4px, so none of this reopens the
- *  headline-overlap checks already tuned for the previous max sizes.
+ *  Sizes span a deliberate large/medium/small range (44-96px) per the
+ *  brief's "assign different sizes ... to create depth and hierarchy".
+ *
+ *  Every cutout here is now 480x480 (up from the original 240x240 source
+ *  JPGs), matching main/director/detective's own scale -- these four
+ *  used to visibly soften at the same render sizes the others stayed
+ *  crisp at. The cutouts themselves were also redone with a connected-
+ *  component pass (keep only the character's own blob, discard any
+ *  isolated island) instead of the original tolerance/morphology-only
+ *  pipeline, which is what finally removed a thin decorative frame ring
+ *  baked into all four source tiles that no amount of extra tolerance or
+ *  morphological opening alone could reach without also damaging real
+ *  character detail (confirmed on producer: a uniform closing pass that
+ *  removed the ring also truncated the laptop's own thin edge highlight,
+ *  since the two were morphologically indistinguishable -- connected-
+ *  component labelling doesn't have that problem, since the ring was
+ *  never attached to the character's own blob in the first place).
  *
  *  Idle drift stays off ("annule l'effet ballons et rends les fixes") --
  *  none of the props below include floatAmplitude -- but a real pointer
@@ -81,7 +94,7 @@ const HERO_FLOATERS: Array<{
   { variant: "scout", size: 96, className: "top-16 left-10" },
   { variant: "connector", size: 56, className: "top-16 right-10" },
   { variant: "producer", size: 90, className: "bottom-16 left-10" },
-  { variant: "publicist", size: 48, className: "top-72 left-4" },
+  { variant: "publicist", size: 48, className: "top-72 right-4" },
   { variant: "director", size: 78, className: "top-4 left-[36%]" },
   { variant: "detective", size: 44, className: "bottom-4 right-[36%]" },
 ];
