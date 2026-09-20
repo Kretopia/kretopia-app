@@ -574,23 +574,12 @@ const ProfileContent = () => {
           </div>
         )}
 
-        {/* Owner tools — preview public Passport + private dashboard */}
-        <div className="mt-3 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => window.open(`/profile/${profile?.user_id}`, '_blank', 'noopener')}
-            className="btn-glass btn-glass-outline flex-1 text-[11px] py-1.5 rounded-full"
-          >
-            Preview public Passport ↗
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/dashboard')}
-            className="btn-glass btn-glass-outline flex-1 text-[11px] py-1.5 rounded-full"
-          >
-            Private dashboard →
-          </button>
-        </div>
+        {/* The old "Preview public Passport" / "Private dashboard" exit
+            buttons are gone -- Passport stays focused on identity,
+            verification, stamps, QR and share (see FeaturePageHeader/
+            PassportHero above); all of what "Private dashboard" used to
+            show now lives in one unified dashboard on Today
+            (TodayMetricsDashboard), reachable from the home screen. */}
 
         {/* Bridge to Credits — the full record (Stamps, Book Me, Skills,
             Co-signs, Reviews) now lives in the Credits dashboard. */}

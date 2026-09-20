@@ -1,13 +1,24 @@
-import type { ReactNode } from "react";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
+import { ChevronDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { BrandLoader } from "@/components/brand/BrandDots";
 import { checkProfileCompletion } from "@/lib/profileCompletion";
+import { cn } from "@/lib/utils";
 import { TodayCommandCenter } from "./TodayCommandCenter";
 import { TodayOpportunities } from "./TodayOpportunities";
 import { useTodaySignals } from "./today.selectors";
 import type { ProfileRow } from "./today.types";
+
+// Lazy: recharts + half a dozen dialog components (Edit/QR/Share/EPK) add
+// real weight, and this section is collapsed by default -- TodayDashboard
+// itself is imported eagerly by UnifiedHome (every signed-in visitor's
+// first paint), so bundling this into that same chunk would tax everyone
+// to pay for a section most won't open on a given visit.
+const TodayMetricsDashboard = lazy(() =>
+  import("./TodayMetricsDashboard").then((m) => ({ default: m.TodayMetricsDashboard })),
+);
 
 interface TodayDashboardProps {
   firstName?: string;
@@ -33,6 +44,12 @@ export function TodayDashboard({ firstName, peopleForYou, profile, profileFull, 
   const effectiveProfile = profileFull || profile || null;
   const signals = useTodaySignals(user?.id, effectiveProfile, myCredits);
   const refresh = signals.reload;
+  // Collapsed by default -- progressive disclosure: Today's job is "what
+  // should I do right now" (TodayCommandCenter/TodayOpportunities above);
+  // the metrics dashboard is "how is my Passport doing", real but
+  // secondary, so it doesn't compete with the priority action for the
+  // first thing a visitor sees.
+  const [showMetrics, setShowMetrics] = useState(false);
 
   if (!user) return null;
 
@@ -77,6 +94,37 @@ export function TodayDashboard({ firstName, peopleForYou, profile, profileFull, 
               showOnboardingChecklist={showOnboardingChecklist}
             />
           </motion.div>
+
+          {/* Passport dashboard -- replaces the old separate "Preview
+              public Passport" / "Private dashboard" exits from Passport
+              itself (Profile.tsx) with one unified surface here instead. */}
+          {effectiveProfile && (
+            <motion.div
+              initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={reducedMotion ? { duration: 0 } : { duration: 0.4, delay: 0.12, ease: [0.2, 0.65, 0.3, 0.95] }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowMetrics((v) => !v)}
+                aria-expanded={showMetrics}
+                className="w-full flex items-center justify-between rounded-2xl border border-border/60 bg-card px-4 py-3.5 text-left"
+              >
+                <div>
+                  <p className="text-sm font-semibold">Your Passport dashboard</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Views, verification, standing and audience</p>
+                </div>
+                <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", showMetrics && "rotate-180")} />
+              </button>
+              {showMetrics && (
+                <div className="mt-3">
+                  <Suspense fallback={<div className="flex items-center justify-center py-10" aria-busy="true"><BrandLoader /></div>}>
+                    <TodayMetricsDashboard profile={effectiveProfile} onProfileUpdate={refresh} />
+                  </Suspense>
+                </div>
+              )}
+            </motion.div>
+          )}
         </>
       )}
     </div>
