@@ -17,6 +17,8 @@ interface FeaturePageHeaderProps {
   tutorial?: { featureKey: string; label: string; steps: TutorialStep[] };
   /** Keep title + accent on a single line (auto-scaled to fit). Defaults to true. */
   oneLine?: boolean;
+  /** Tighter top padding -- see CinematicHeaderPlate's own doc. Default false. */
+  compact?: boolean;
 }
 
 /**
@@ -29,7 +31,7 @@ interface FeaturePageHeaderProps {
  * regardless of the real theme. Now resolves --background itself instead,
  * so it follows Dark/Light like everything else.
  */
-export function FeaturePageHeader({ eyebrow, title, accentTitle, subtitle, tabs, tutorial, oneLine = true }: FeaturePageHeaderProps) {
+export function FeaturePageHeader({ eyebrow, title, accentTitle, subtitle, tabs, tutorial, oneLine = true, compact = false }: FeaturePageHeaderProps) {
   return (
     <div
       className="relative overflow-hidden pt-[env(safe-area-inset-top)]"
@@ -59,6 +61,7 @@ export function FeaturePageHeader({ eyebrow, title, accentTitle, subtitle, tabs,
         subtitle={subtitle}
         align="center"
         oneLine={oneLine}
+        compact={compact}
         cornerSlot={
           // The tutorial trigger floats in the header's corner instead of
           // sitting between the subtitle and the first card — no sandwich.

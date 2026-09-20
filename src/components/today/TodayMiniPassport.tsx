@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowUpRight, MapPin, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, Award, CheckCircle, MapPin, Shield, ShieldCheck, Star } from "lucide-react";
 import { HoloCard } from "@/components/passport/HoloCard";
 import type { ProfileRow } from "./today.types";
 
@@ -9,10 +9,24 @@ interface TodayMiniPassportProps {
   completion: number;
 }
 
+/** Same three tiers/labels/icons as ShareableProfileCard's own badge --
+ *  one vocabulary for "what verified means" wherever a Passport is
+ *  previewed, not a second one invented for this card. */
+function verificationBadge(tier: string | null | undefined) {
+  switch (tier) {
+    case "elite": return { icon: Award, label: "Elite Verified", color: "text-amber-400" };
+    case "industry": return { icon: Shield, label: "Industry Verified", color: "text-primary" };
+    case "verified": return { icon: CheckCircle, label: "Verified", color: "text-emerald-400" };
+    default: return null;
+  }
+}
+
 export function TodayMiniPassport({ profile, creditCount, completion }: TodayMiniPassportProps) {
   const skills = [...readLabels(profile.professional_skills), ...readLabels(profile.passion_skills)].slice(0, 3);
   const displayName = profile.full_name || profile.username || "Kretopia Creator";
   const profession = profile.passport_profession || profile.job_title || profile.role || "Creator";
+  const badge = verificationBadge(profile.verification_tier);
+  const hasRating = (profile.total_reviews || 0) > 0 && typeof profile.average_rating === "number";
 
   return (
     <Link to="/passport" className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-2xl" aria-label="Open my Creative Passport">
@@ -38,7 +52,15 @@ export function TodayMiniPassport({ profile, creditCount, completion }: TodayMin
                   <p className="truncate text-xs text-muted-foreground">{profession}</p>
                 </div>
               </div>
-              <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+                {badge && (
+                  <span className={`inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide whitespace-nowrap ${badge.color}`}>
+                    <badge.icon className="h-3 w-3" />
+                    {badge.label}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="mt-auto pt-5">
@@ -50,6 +72,12 @@ export function TodayMiniPassport({ profile, creditCount, completion }: TodayMin
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
                 {profile.location ? <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{profile.location}</span> : null}
                 <span className="inline-flex items-center gap-1"><ShieldCheck className="h-3 w-3 text-primary" />{creditCount} credit{creditCount === 1 ? "" : "s"}</span>
+                {hasRating && (
+                  <span className="inline-flex items-center gap-1">
+                    <Star className="h-3 w-3 fill-current text-amber-400" />
+                    {profile.average_rating!.toFixed(1)} ({profile.total_reviews})
+                  </span>
+                )}
                 <span className="ml-auto font-bold text-foreground">{completion}% complete</span>
               </div>
             </div>

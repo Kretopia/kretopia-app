@@ -136,18 +136,12 @@ export const ClosingCTASection = () => {
         }
       />
 
-      {/* No extra pb-* here -- .landing-section already supplies this
-          section's own bottom padding (see index.css); stacking another
-          4-5rem on top of it was the "large margin before FAQ" the rest
-          of the page's vertical rhythm doesn't otherwise have. */}
-      <p
-        className="relative text-center text-[10px] font-semibold uppercase tracking-[0.32em] text-white/50"
-        style={{ fontFamily: "'Satoshi', 'Inter', sans-serif" }}
-      >
-        Kretopia
-        <br />
-        Where Creativity Lives.
-      </p>
+      {/* The "Kretopia / Where Creativity Lives." tagline that used to sit
+          here read as an empty, disconnected beat -- direct feedback asked
+          for it gone so the section's own .landing-section bottom padding
+          (see index.css) is what leads straight into the FAQ's own
+          "Everything about Kretopia" heading, without an extra block of
+          text between them. */}
     </section>
   );
 };
