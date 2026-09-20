@@ -113,7 +113,6 @@ const NotificationsPage = lazy(() => import("./pages/Notifications"));
 const InboxPage = lazy(() => import("./pages/Inbox"));
 const Intel = lazy(() => import("./pages/Intel"));
 const ThrivePay = lazy(() => import("./pages/ThrivePay"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
 
 const Install = lazy(() => import("./pages/Install"));
 const GuestCall = lazy(() => import("./pages/GuestCall"));
@@ -337,7 +336,11 @@ const AppContent = () => {
             <Route path="/circle/:circleId" element={<ProtectedRoute><CircleToCrewRedirect /></ProtectedRoute>} />
             <Route path="/circle/:circleId/chat" element={<ProtectedRoute><CircleToCrewRedirect suffix="/chat" /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            {/* /dashboard: the old standalone page is gone -- its content
+                (profile health, standing, trust, audience) now lives in
+                one unified dashboard inside Today. Redirect rather than
+                remove the route, so bookmarks/links keep working. */}
+            <Route path="/dashboard" element={<Navigate to="/" replace />} />
             
             {/* View other user's profile - Auth users get in-app view, public gets EPK */}
             <Route path="/profile/:userId" element={<ViewProfile />} />
@@ -536,8 +539,12 @@ const AppContent = () => {
             <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
             <Route path="/intel" element={<ProtectedRoute><Intel /></ProtectedRoute>} />
             
-            {/* Legacy redirects — consolidated */}
-            <Route path="/dashboard" element={<Navigate to="/desk" replace />} />
+            {/* Legacy redirects — consolidated. /dashboard's own redirect
+                lives up near /profile now, next to the Passport route it
+                replaces the exit button for -- this duplicate definition
+                (to a different target, /desk) was dead code: React
+                Router resolves the first-defined match for two identical
+                static paths, so the /dashboard route above always won. */}
             <Route path="/spark" element={<Navigate to="/" replace />} />
             <Route path="/cre8" element={<Navigate to="/" replace />} />
             <Route path="/marketplace" element={<Navigate to="/opportunities" replace />} />
