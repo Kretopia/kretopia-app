@@ -135,7 +135,7 @@ export default function Onboarding() {
 
     if (profileData?.onboarding_completed) { navigate("/circle"); return; }
 
-    // Extract OAuth identity (Google/Apple) for prefill
+    // Extract OAuth identity (Google) for prefill
     const meta = (user.user_metadata || {}) as Record<string, any>;
     const oauthName: string =
       meta.full_name ||
@@ -144,7 +144,7 @@ export default function Onboarding() {
       "";
     const oauthAvatar: string = meta.avatar_url || meta.picture || "";
     const provider = (user.app_metadata as any)?.provider || "";
-    const isOAuthUser = provider === "google" || provider === "apple";
+    const isOAuthUser = provider === "google";
 
     // Pre-populate from existing profile data
     let resolvedName = "";

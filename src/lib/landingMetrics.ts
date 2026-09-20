@@ -75,7 +75,7 @@ export function trackLandingCtaClick(params: {
 
 export type AuthEntrySource = LandingSectionId | "sticky_mobile" | "direct" | "unknown";
 
-export type AuthMethod = "email" | "google" | "apple";
+export type AuthMethod = "email" | "google";
 
 export type AuthErrorCategory =
   | "invalid_input" | "account_exists" | "provider_error" | "network_error" | "unknown_error";

@@ -42,7 +42,6 @@ const Auth = () => {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showWaitlistForm, setShowWaitlistForm] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [appleLoading, setAppleLoading] = useState(false);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
 
   const navigate = useNavigate();
@@ -315,9 +314,8 @@ const Auth = () => {
     setLoading(false);
   };
 
-  const handleOAuthSignIn = async (provider: "google" | "apple") => {
-    const setLoadingFn = provider === "google" ? setGoogleLoading : setAppleLoading;
-    setLoadingFn(true);
+  const handleOAuthSignIn = async (provider: "google") => {
+    setGoogleLoading(true);
 
     const { analytics } = await import("@/lib/analytics");
     analytics.featureUsed(`${provider}_signin_attempt`);
@@ -330,8 +328,8 @@ const Auth = () => {
       // config lives behind "Lovable Cloud", a separate paid backend layer
       // this project doesn't use (it runs on its own external Supabase
       // project already). Calling Supabase directly needs no Lovable
-      // credits and no second backend; Google/Apple just need to be
-      // enabled with real client credentials in Supabase's own (free)
+      // credits and no second backend; Google just needs to be enabled
+      // with real client credentials in Supabase's own (free)
       // Authentication > Providers page.
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
@@ -351,13 +349,13 @@ const Auth = () => {
         analytics.errorOccurred(`${provider}_signin`, error.message, "auth");
         if (isSignupIntent) trackSignupError(authEntrySource, provider, categorizeAuthError(error));
         else trackSigninError(authEntrySource, provider, categorizeAuthError(error));
-        toast({ title: `${provider === "google" ? "Google" : "Apple"} Sign-In Failed`, description: error.message, variant: "destructive" });
-        setLoadingFn(false);
+        toast({ title: "Google Sign-In Failed", description: error.message, variant: "destructive" });
+        setGoogleLoading(false);
       }
     } catch (err: any) {
       console.error(`${provider} sign-in error:`, err);
-      toast({ title: "Error", description: `Failed to sign in with ${provider === "google" ? "Google" : "Apple"}. Please try again.`, variant: "destructive" });
-      setLoadingFn(false);
+      toast({ title: "Error", description: "Failed to sign in with Google. Please try again.", variant: "destructive" });
+      setGoogleLoading(false);
     }
   };
 
@@ -571,8 +569,7 @@ const Auth = () => {
                   loading={loading} onSubmit={handleSignIn}
                   onForgotPassword={() => setShowForgotPassword(true)}
                   onGoogleSignIn={() => handleOAuthSignIn("google")}
-                  onAppleSignIn={() => handleOAuthSignIn("apple")}
-                  googleLoading={googleLoading} appleLoading={appleLoading}
+                  googleLoading={googleLoading}
                 />
               </TabsContent>
 
@@ -616,23 +613,21 @@ const Auth = () => {
                       </button>
                     </div>
 
-                    {/* Google/Apple lead now, not the search -- sign-in
-                        attempts massively outnumber people who complete a
-                        multi-step name search, so the fastest path into the
-                        app goes first. Search stays one scroll away for
-                        anyone who wants Kreto to pull in their existing
-                        credits instead of starting blank. */}
+                    {/* Google leads now, not the search -- sign-in attempts
+                        massively outnumber people who complete a multi-step
+                        name search, so the fastest path into the app goes
+                        first. Search stays one scroll away for anyone who
+                        wants Kreto to pull in their existing credits instead
+                        of starting blank. */}
                     <p className="text-center text-sm font-semibold text-foreground mb-0.5">
-                      Get in fast with Google or Apple
+                      Get in fast with Google
                     </p>
                     <p className="text-center text-xs text-muted-foreground mb-4">
                       Create your Kretopia Passport in seconds.
                     </p>
                     <OAuthQuickButtons
                       onGoogle={() => handleOAuthSignIn("google")}
-                      onApple={() => handleOAuthSignIn("apple")}
                       googleLoading={googleLoading}
-                      appleLoading={appleLoading}
                       label=""
                     />
                     <div className="my-5 flex items-center gap-2">
@@ -667,8 +662,7 @@ const Auth = () => {
                       accountType={accountType} setAccountType={setAccountType}
                       loading={loading} onSubmit={handleSignUp}
                       onGoogleSignIn={() => handleOAuthSignIn("google")}
-                      onAppleSignIn={() => handleOAuthSignIn("apple")}
-                      googleLoading={googleLoading} appleLoading={appleLoading}
+                      googleLoading={googleLoading}
                     />
                     <div className="mt-4 text-center">
                       <button

@@ -22,9 +22,7 @@ interface SignUpWizardProps {
   loading: boolean;
   onSubmit: (e: React.FormEvent) => void;
   onGoogleSignIn: () => void;
-  onAppleSignIn: () => void;
   googleLoading: boolean;
-  appleLoading: boolean;
 }
 
 export const SignUpWizard = ({
@@ -32,7 +30,7 @@ export const SignUpWizard = ({
   confirmPassword, setConfirmPassword,
   accountType, setAccountType,
   loading, onSubmit,
-  onGoogleSignIn, onAppleSignIn, googleLoading, appleLoading,
+  onGoogleSignIn, googleLoading,
 }: SignUpWizardProps) => {
   // Creator vs Brand toggle drives onboarding fork (individual → /onboarding,
   // company → /company-onboarding). Default to individual.
@@ -116,7 +114,7 @@ export const SignUpWizard = ({
               : "Hire creators, run campaigns, manage briefs."}
           </p>
 
-          <SocialLoginButtons onGoogleSignIn={onGoogleSignIn} onAppleSignIn={onAppleSignIn} googleLoading={googleLoading} appleLoading={appleLoading} />
+          <SocialLoginButtons onGoogleSignIn={onGoogleSignIn} googleLoading={googleLoading} />
           <OrDivider text="or sign up with email" />
 
           <div className="space-y-2">
